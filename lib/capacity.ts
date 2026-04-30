@@ -1,5 +1,4 @@
-import { eachDayOfInterval, startOfDay } from 'date-fns';
-
+import { getTodayUtc, isUtcDateInRange, listUtcDaysInRange, startOfUtcDay } from '@/lib/date';
 import { NON_WORKING_DAY_TYPE, WEEK_DAY } from '@/types';
 import type {
   AbsenceSummary,
@@ -24,21 +23,21 @@ export function workingDaysInRange(
   start: Date,
   end: Date,
 ): number {
-  const normalizedStart = startOfDay(start);
-  const normalizedEnd = startOfDay(end);
+  const normalizedStart = startOfUtcDay(start);
+  const normalizedEnd = startOfUtcDay(end);
   const workingDayNumbers = new Set<number>(workingDays.map((day) => WEEKDAY_MAP[day]));
-  const intervalDays = eachDayOfInterval({ start: normalizedStart, end: normalizedEnd });
+  const intervalDays = listUtcDaysInRange(normalizedStart, normalizedEnd);
 
-  let count = intervalDays.filter((day) => workingDayNumbers.has(day.getDay())).length;
+  let count = intervalDays.filter((day) => workingDayNumbers.has(day.getUTCDay())).length;
 
   for (const nonWorkingDay of nonWorkingDays) {
-    const normalizedDate = startOfDay(new Date(nonWorkingDay.date));
+    const normalizedDate = startOfUtcDay(new Date(nonWorkingDay.date));
 
-    if (normalizedDate < normalizedStart || normalizedDate > normalizedEnd) {
+    if (!isUtcDateInRange(normalizedDate, normalizedStart, normalizedEnd)) {
       continue;
     }
 
-    if (!workingDayNumbers.has(normalizedDate.getDay())) {
+    if (!workingDayNumbers.has(normalizedDate.getUTCDay())) {
       continue;
     }
 
@@ -53,20 +52,20 @@ export function actualEndDate(sprint: Pick<SprintRecord, 'plannedEnd' | 'actualE
     return sprint.actualEnd;
   }
 
-  const today = startOfDay(new Date());
-  const plannedEnd = startOfDay(sprint.plannedEnd);
+  const today = getTodayUtc();
+  const plannedEnd = startOfUtcDay(sprint.plannedEnd);
 
   return today > plannedEnd ? today : plannedEnd;
 }
 
 export function isSprintOverdue(sprint: Pick<SprintRecord, 'plannedEnd' | 'actualEnd'>): boolean {
-  const plannedEnd = startOfDay(sprint.plannedEnd);
+  const plannedEnd = startOfUtcDay(sprint.plannedEnd);
 
   if (sprint.actualEnd) {
-    return startOfDay(sprint.actualEnd) > plannedEnd;
+    return startOfUtcDay(sprint.actualEnd) > plannedEnd;
   }
 
-  return startOfDay(new Date()) > plannedEnd;
+  return getTodayUtc() > plannedEnd;
 }
 
 export function calculateCapacity(workingDays: number, focusFactor: number): number {

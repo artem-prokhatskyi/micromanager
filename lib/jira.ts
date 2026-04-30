@@ -52,6 +52,12 @@ interface JiraRequestLogContext {
   status?: number;
 }
 
+interface JiraAuthLogContext {
+  durationMs?: number;
+  errorMessage?: string;
+  requestId: string;
+}
+
 export class JiraRequestError extends Error {
   status?: number;
 
@@ -83,6 +89,24 @@ function logJiraRequest(
   const serializedLogEntry = JSON.stringify(logEntry);
 
   if (event === 'jira_request_failed') {
+    console.error(serializedLogEntry);
+    return;
+  }
+
+  console.info(serializedLogEntry);
+}
+
+function logJiraAuth(
+  event: 'jira_auth_started' | 'jira_auth_validation_succeeded' | 'jira_auth_validation_failed',
+  context: JiraAuthLogContext,
+): void {
+  const serializedLogEntry = JSON.stringify({
+    event,
+    source: 'jira',
+    ...context,
+  });
+
+  if (event === 'jira_auth_validation_failed') {
     console.error(serializedLogEntry);
     return;
   }
@@ -232,8 +256,6 @@ export async function findSprintsByName(
   );
 
   const boardId = boardResponse.values.filter(({ type }) => type === 'scrum')[0]?.id;
-
-  console.log('Found boards for space', jiraSpace, boardResponse.values, 'Using boardId', boardId);
 
   if (!boardId) {
     return [];

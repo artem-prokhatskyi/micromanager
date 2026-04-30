@@ -51,6 +51,7 @@ export interface ApiError {
   error: {
     message: string;
     code?: string;
+    conflicts?: string[];
     details?: Record<string, string>;
   };
 }
@@ -202,6 +203,46 @@ export interface NonWorkingDayRecord {
   date: string;
   type: NonWorkingDayType;
   halfDay: boolean;
+}
+
+export interface CalendarNonWorkingDayRecord extends NonWorkingDayRecord {
+  memberName: string;
+}
+
+export interface CalendarMemberOption {
+  id: string;
+  name: string;
+}
+
+export interface CalendarSprintBand {
+  id: string;
+  name: string;
+  plannedStart: string;
+  plannedEnd: string;
+  actualEnd: string | null;
+  isOverdue: boolean;
+}
+
+export interface TeamCalendarData {
+  team: TeamDetail;
+  members: CalendarMemberOption[];
+  sprints: CalendarSprintBand[];
+  nonWorkingDays: CalendarNonWorkingDayRecord[];
+}
+
+export interface NonWorkingDayFormValues {
+  memberIds: string[];
+  date: string;
+  type: NonWorkingDayType;
+  halfDay: boolean;
+}
+
+export interface NonWorkingDayValidationErrors {
+  memberIds?: string;
+  date?: string;
+  type?: string;
+  halfDay?: string;
+  conflicts?: string[];
 }
 
 export interface SprintRecord {

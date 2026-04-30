@@ -81,6 +81,13 @@ export function SidebarNavLinks({ activeTeamId, collapsed }: SidebarNavLinksProp
       label: 'Add sprint',
       title: scopedDisabled ? 'Select a team first' : 'Add a sprint',
     },
+    {
+      disabled: scopedDisabled,
+      href: activeTeamId ? `/teams/${activeTeamId}/calendar` : '#',
+      icon: <LinkIcon path="M8 2V5M16 2V5M3 9H21M5 4H19C20.1046 4 21 4.89543 21 6V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V6C3 4.89543 3.89543 4 5 4ZM7 13H11V17H7V13Z" />,
+      label: 'Calendar',
+      title: scopedDisabled ? 'Select a team first' : 'Open the team calendar',
+    },
   ];
 
   return <div className="space-y-1">{navItems.map((item) => renderNavItem(collapsed, item, pathname))}</div>;
