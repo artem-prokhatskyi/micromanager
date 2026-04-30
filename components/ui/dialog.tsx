@@ -1,7 +1,7 @@
 'use client';
 
 import type { HTMLAttributes, ReactElement, ReactNode } from 'react';
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -39,6 +39,20 @@ function useDialog(): DialogContextValue {
 }
 
 export function Dialog({ children, onOpenChange, open }: DialogProps): ReactElement {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   return <DialogContext.Provider value={{ onOpenChange, open }}>{children}</DialogContext.Provider>;
 }
 
@@ -50,11 +64,11 @@ export function DialogContent({ children, className, ...props }: DialogContentPr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 px-4 py-4 sm:py-8">
       <button aria-label="Close dialog" className="absolute inset-0" onClick={() => onOpenChange(false)} type="button" />
       <div
         className={cn(
-          'relative z-10 w-full max-w-2xl rounded-3xl border border-border/80 bg-card p-6 shadow-2xl shadow-black/30',
+          'relative z-10 mx-auto my-auto w-full max-w-2xl overflow-y-auto rounded-3xl border border-border/80 bg-card p-4 shadow-2xl shadow-black/30 max-h-[calc(100vh-2rem)] sm:p-6 sm:max-h-[calc(100vh-4rem)]',
           className,
         )}
         {...props}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactElement, ReactNode } from 'react';
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -48,6 +48,20 @@ export function AlertDialog({ children }: AlertDialogProps): ReactElement {
   const [open, setOpen] = useState<boolean>(false);
   const value = useMemo<AlertDialogContextValue>(() => ({ open, setOpen }), [open]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   return <AlertDialogContext.Provider value={value}>{children}</AlertDialogContext.Provider>;
 }
 
@@ -74,7 +88,7 @@ export function AlertDialogContent({ children, className, ...props }: AlertDialo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 px-4 py-4 sm:py-8">
       <button
         aria-label="Close dialog"
         className="absolute inset-0"
@@ -83,7 +97,7 @@ export function AlertDialogContent({ children, className, ...props }: AlertDialo
       />
       <div
         className={cn(
-          'relative z-10 w-full max-w-md rounded-3xl border border-border/80 bg-card p-6 shadow-2xl shadow-black/30',
+          'relative z-10 mx-auto my-auto w-full max-w-md overflow-y-auto rounded-3xl border border-border/80 bg-card p-4 shadow-2xl shadow-black/30 max-h-[calc(100vh-2rem)] sm:p-6 sm:max-h-[calc(100vh-4rem)]',
           className,
         )}
         {...props}

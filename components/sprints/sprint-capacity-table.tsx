@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import { calculateCapacity } from '@/lib/capacity';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CapacityRow } from '@/components/sprints/capacity-row';
@@ -147,6 +147,9 @@ export function SprintCapacityTable({ members, sprint, sprints, teamId }: Sprint
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SprintSelector currentSprintId={sprint.id} sprints={sprints} teamId={teamId} />
           <div className="flex flex-wrap gap-3">
+            <a className={buttonVariants({ variant: 'outline' })} href={`/api/teams/${teamId}/sprints/${sprint.id}/export`}>
+              Export CSV
+            </a>
             <Button disabled={isSyncing} onClick={() => void handleSyncSprint()} type="button" variant="outline">
               {isSyncing ? 'Syncing...' : 'Sync from Jira'}
             </Button>
