@@ -11,6 +11,7 @@ interface IssuePipelineSprintContext {
   actualEnd: Date | null;
   activatedAt: Date | null;
   jiraDomain: string;
+  plannedStart: Date;
   sprintJiraId: number;
   sprintName: string;
   storyPointsFieldId: string;
@@ -99,12 +100,16 @@ function getLastStatus(issue: JiraIssue, histories: JiraIssueHistory[]): string 
 function getIssueLabel(
   histories: JiraIssueHistory[],
   activatedAt: Date | null,
+  plannedStart: Date,
   sprintJiraId: number,
   sprintName: string,
 ): 'planned' | 'unplanned' {
+  const planningCutoff = activatedAt ?? plannedStart;
+
   if (!activatedAt) {
-    console.warn(`[issue-pipeline] Sprint activation date missing for sprint '${sprintName}'. Treating all issues as planned.`);
-    return 'planned';
+    console.warn(
+      `[issue-pipeline] Sprint activation date missing for sprint '${sprintName}'. Falling back to plannedStart for planned/unplanned labeling.`,
+    );
   }
 
   let addedAt: Date | null = null;
@@ -134,7 +139,7 @@ function getIssueLabel(
     return 'planned';
   }
 
-  return addedAt <= activatedAt ? 'planned' : 'unplanned';
+  return addedAt <= planningCutoff ? 'planned' : 'unplanned';
 }
 
 function toProcessedIssue(
@@ -154,7 +159,13 @@ function toProcessedIssue(
     key: issue.key,
     title: issue.fields.summary,
     url: `https://${sprint.jiraDomain}/browse/${issue.key}`,
-    label: getIssueLabel(filteredHistories, sprint.activatedAt, sprint.sprintJiraId, sprint.sprintName),
+    label: getIssueLabel(
+      filteredHistories,
+      sprint.activatedAt,
+      sprint.plannedStart,
+      sprint.sprintJiraId,
+      sprint.sprintName,
+    ),
     storyPoints: getStoryPoints(issue, filteredHistories, sprint.storyPointsFieldId),
     status: getLastStatus(issue, filteredHistories),
     priority: issue.fields.priority?.name ?? null,
