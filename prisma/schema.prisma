@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WeekDay {
+  Mon
+  Tue
+  Wed
+  Thu
+  Fri
+  Sat
+  Sun
+}
+
+enum Specialization {
+  frontend
+  backend
+  both
+}
+
+enum NonWorkingDayType {
+  holiday
+  vacation
+  sickleave
+}
+
+model Settings {
+  id                 String   @id @default(cuid())
+  jiraDomain         String   @default("")
+  jiraEmail          String   @default("")
+  jiraApiKey         String   @default("")
+  storyPointsFieldId String   @default("story_points")
+  githubApiKey       String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Team {
+  id                 String          @id @default(cuid())
+  name               String
+  jiraSpace          String
+  githubRepositories String[]        @default([])
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  members            TeamMember[]
+  nonWorkingDays     NonWorkingDay[]
+  sprints            Sprint[]
+}
+
+model TeamMember {
+  id                 String              @id @default(cuid())
+  teamId             String
+  name               String
+  jiraEmail          String
+  githubUsername     String              @default("")
+  workingDays        WeekDay[]
+  defaultFocusFactor Float
+  specialization     Specialization?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  team               Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nonWorkingDays     NonWorkingDay[]
+  sprintFocusFactors SprintFocusFactor[]
+}
+
+model NonWorkingDay {
+  id        String            @id @default(cuid())
+  memberId  String
+  teamId    String
+  date      DateTime          @db.Date
+  type      NonWorkingDayType
+  halfDay   Boolean           @default(false)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  member    TeamMember        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  team      Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, date])
+}
+
+model Sprint {
+  id           String             @id @default(cuid())
+  teamId       String
+  jiraSprintId Int
+  name         String
+  plannedStart DateTime
+  plannedEnd   DateTime
+  actualEnd    DateTime?
+  activatedAt  DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  team         Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  focusFactors SprintFocusFactor[]
+  issueCache   SprintIssueCache?
+}
+
+model SprintFocusFactor {
+  id          String     @id @default(cuid())
+  sprintId    String
+  memberId    String
+  focusFactor Float
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  sprint      Sprint     @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  member      TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([sprintId, memberId])
+}
+
+model SprintIssueCache {
+  id        String   @id @default(cuid())
+  sprintId  String   @unique
+  data      Json
+  fetchedAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sprint    Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+}
