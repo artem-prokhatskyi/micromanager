@@ -138,3 +138,59 @@ export interface JiraIssue {
     histories: JiraIssueHistory[];
   };
 }
+
+export interface CreateTeamValues {
+  name: string;
+  jiraSpace: string;
+  githubRepositories: string;
+}
+
+export interface TeamValidationErrors {
+  name?: string;
+  jiraSpace?: string;
+  githubRepositories?: string;
+}
+
+export interface TeamOption {
+  id: string;
+  name: string;
+}
+
+export interface TeamDetail {
+  id: string;
+  name: string;
+  jiraSpace: string;
+  githubRepositories: string[];
+}
+
+export interface TeamMemberRecord {
+  id: string;
+  teamId: string;
+  name: string;
+  jiraEmail: string;
+  githubUsername: string;
+  workingDays: WeekDay[];
+  defaultFocusFactor: number;
+  specialization: Specialization | null;
+}
+
+export interface TeamMemberFormValues {
+  teamId: string;
+  name: string;
+  jiraEmail: string;
+  githubUsername: string;
+  workingDays: WeekDay[];
+  defaultFocusFactor: string;
+  frontendSpecialization: boolean;
+  backendSpecialization: boolean;
+}
+
+export interface TeamMemberValidationErrors {
+  teamId?: string;
+  name?: string;
+  jiraEmail?: string;
+  githubUsername?: string;
+  workingDays?: string;
+  defaultFocusFactor?: string;
+  specialization?: string;
+}
