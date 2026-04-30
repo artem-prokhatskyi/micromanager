@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { EmptyState } from '@/components/shared/empty-state';
 import { TeamMemberList } from '@/components/teams/team-member-list';
+import { ButtonLink } from '@/components/ui/button';
 import { getFirstTeam, getTeamDetail, getTeamMembers } from '@/lib/data/team';
 
 interface TeamMembersPageProps {
@@ -42,12 +43,15 @@ export default async function TeamMembersPage({ params }: TeamMembersPageProps):
 
   return (
     <section className="space-y-6">
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">{team.name}</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Team Members</h1>
-        <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-          Review and maintain the people whose schedules and Jira accounts drive future sprint calculations.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">{team.name}</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Team Management</h1>
+          <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+            Review and maintain the people whose schedules and Jira accounts drive future sprint calculations.
+          </p>
+        </div>
+        <ButtonLink href={`/teams/${teamId}/members/new`}>Add team member</ButtonLink>
       </div>
       <TeamMemberList members={members} />
     </section>

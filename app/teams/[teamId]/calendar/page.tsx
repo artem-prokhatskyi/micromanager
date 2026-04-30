@@ -50,7 +50,6 @@ export default async function TeamCalendarPage({ params }: TeamCalendarPageProps
   return (
     <section className="space-y-6">
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">RFC-006</p>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">Team Calendar</h1>
         <p className="max-w-2xl text-base leading-7 text-muted-foreground">
           Track non-working days across the team and compare them against sprint timelines before they skew capacity.

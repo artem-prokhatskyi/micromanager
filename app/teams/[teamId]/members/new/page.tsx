@@ -30,7 +30,6 @@ export default async function NewTeamMemberPage({ params }: NewTeamMemberPagePro
   return (
     <section className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">RFC-004</p>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">Add Team Member</h1>
         <p className="max-w-2xl text-base leading-7 text-muted-foreground">
           Capture each developer&apos;s Jira identity, working week, and focus factor so the team can be used by future sprint capacity and issue views.

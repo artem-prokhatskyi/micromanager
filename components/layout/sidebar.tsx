@@ -66,7 +66,7 @@ export function Sidebar({ collapsed, onToggle, teams }: SidebarProps): ReactElem
 
         <Separator />
 
-        <SidebarNavLinks activeTeamId={activeTeamId} collapsed={collapsed} />
+        <SidebarNavLinks collapsed={collapsed} />
       </div>
 
       <div className="flex-1" />

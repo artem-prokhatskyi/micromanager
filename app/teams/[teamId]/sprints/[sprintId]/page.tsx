@@ -31,9 +31,6 @@ export default async function SprintDashboardPage({ params }: SprintDashboardPag
     <section className="space-y-6">
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">{dashboardData.team.name}</p>
-        <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-          Review planned and actual capacity for the sprint, then tune per-member focus factors without affecting their defaults.
-        </p>
       </div>
       <SprintCapacityTable
         members={dashboardData.members}
