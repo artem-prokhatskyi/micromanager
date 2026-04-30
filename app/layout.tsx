@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
 
 import { AppShell } from '@/components/layout/app-shell';
+import { Toaster } from '@/components/ui/toaster';
+import { ToastProvider } from '@/hooks/use-toast';
 import { getTeams } from '@/lib/data/team';
 
 import './globals.css';
@@ -23,7 +25,10 @@ export default async function RootLayout({ children }: RootLayoutProps): Promise
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <AppShell teams={teams}>{children}</AppShell>
+        <ToastProvider>
+          <AppShell teams={teams}>{children}</AppShell>
+          <Toaster />
+        </ToastProvider>
       </body>
     </html>
   );

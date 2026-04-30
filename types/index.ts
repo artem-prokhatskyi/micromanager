@@ -51,7 +51,90 @@ export interface ApiError {
   error: {
     message: string;
     code?: string;
+    details?: Record<string, string>;
   };
 }
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
+
+export interface SettingsFormValues {
+  jiraDomain: string;
+  jiraEmail: string;
+  jiraApiKey: string;
+  storyPointsFieldId: string;
+  githubApiKey: string;
+}
+
+export interface SettingsPageData {
+  jiraDomain: string;
+  jiraEmail: string;
+  storyPointsFieldId: string;
+  hasJiraKey: boolean;
+  hasGithubKey: boolean;
+}
+
+export interface SettingsValidationErrors {
+  jiraDomain?: string;
+  jiraEmail?: string;
+  jiraApiKey?: string;
+  storyPointsFieldId?: string;
+  githubApiKey?: string;
+}
+
+export interface SettingsResponseData extends SettingsPageData {
+  jiraApiKey: string;
+  githubApiKey: string;
+}
+
+export interface JiraConnectionResult {
+  success: boolean;
+  message?: string;
+}
+
+export interface JiraSprintMetadata {
+  id: number;
+  name: string;
+  state: 'active' | 'closed' | 'future';
+  startDate: string;
+  endDate: string;
+  completeDate?: string;
+  activatedDate?: string;
+}
+
+export interface JiraIssueAssignee {
+  emailAddress: string;
+  displayName: string;
+}
+
+export interface JiraIssuePriority {
+  name: 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
+}
+
+export interface JiraIssueHistoryItem {
+  field: string;
+  toString: string | null;
+  fromString: string | null;
+}
+
+export interface JiraIssueHistory {
+  created: string;
+  items: JiraIssueHistoryItem[];
+}
+
+export interface JiraIssueFields {
+  summary: string;
+  assignee: JiraIssueAssignee | null;
+  priority: JiraIssuePriority | null;
+  status: {
+    name: string;
+  };
+  [storyPointsField: string]: unknown;
+}
+
+export interface JiraIssue {
+  key: string;
+  fields: JiraIssueFields;
+  changelog: {
+    histories: JiraIssueHistory[];
+  };
+}

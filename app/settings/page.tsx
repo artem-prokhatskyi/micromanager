@@ -1,13 +1,21 @@
 import type { ReactElement } from 'react';
 
-import { PagePlaceholder } from '@/components/shared/page-placeholder';
+import { SettingsForm } from '@/components/settings/settings-form';
+import { getSettingsPageData } from '@/lib/data/settings';
 
-export default function SettingsPage(): ReactElement {
+export default async function SettingsPage(): Promise<ReactElement> {
+  const initialValues = await getSettingsPageData();
+
   return (
-    <PagePlaceholder
-      badge="RFC-003"
-      description="Global settings will live here next, including the Jira connection form and encrypted credential storage. RFC-002 wires the route into the shell so first-run onboarding already has a real destination."
-      title="Settings"
-    />
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">RFC-003</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Settings</h1>
+        <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+          Configure the global Jira connection used by sprint imports and issue synchronization. Credentials are stored on the server and validated on every save.
+        </p>
+      </div>
+      <SettingsForm initialValues={initialValues} />
+    </section>
   );
 }

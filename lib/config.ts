@@ -18,13 +18,20 @@ function validateEncryptionKey(value: string): string {
   return value;
 }
 
-const databaseUrl = requireEnv('DATABASE_URL');
-const encryptionKey = validateEncryptionKey(requireEnv('ENCRYPTION_KEY'));
-
 export const config = {
-  databaseUrl,
-  encryptionKey,
-  postgresDb: requireEnv('POSTGRES_DB'),
-  postgresPassword: requireEnv('POSTGRES_PASSWORD'),
-  postgresUser: requireEnv('POSTGRES_USER'),
+  get databaseUrl(): string {
+    return requireEnv('DATABASE_URL');
+  },
+  get encryptionKey(): string {
+    return validateEncryptionKey(requireEnv('ENCRYPTION_KEY'));
+  },
+  get postgresDb(): string {
+    return requireEnv('POSTGRES_DB');
+  },
+  get postgresPassword(): string {
+    return requireEnv('POSTGRES_PASSWORD');
+  },
+  get postgresUser(): string {
+    return requireEnv('POSTGRES_USER');
+  },
 } as const;
