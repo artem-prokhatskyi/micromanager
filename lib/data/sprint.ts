@@ -1,5 +1,7 @@
 import { unstable_noStore as noStore } from 'next/cache';
 
+import { Prisma } from '@prisma/client';
+
 import {
   actualEndDate,
   calculateCapacity,
@@ -13,6 +15,8 @@ import type {
   MemberCapacityData,
   NonWorkingDayRecord,
   SprintDashboardData,
+  IssueGroupMember,
+  JiraIssue,
   SprintListItem,
   SprintOption,
   SprintRecord,
@@ -23,6 +27,40 @@ function toSprintListItem(sprint: SprintRecord): SprintListItem {
     ...sprint,
     isOverdue: isSprintOverdue(sprint),
   };
+}
+
+function isJiraIssue(value: unknown): value is JiraIssue {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.key === 'string'
+    && typeof candidate.fields === 'object'
+    && candidate.fields !== null
+    && typeof candidate.changelog === 'object'
+    && candidate.changelog !== null
+  );
+}
+
+function readCachedJiraIssues(value: Prisma.JsonValue): JiraIssue[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<JiraIssue[]>((issues, entry) => {
+    if (isJiraIssue(entry)) {
+      issues.push(entry);
+    }
+
+    return issues;
+  }, []);
+}
+
+function toPrismaJsonValue(value: JiraIssue[]): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 export async function getTeamSprints(teamId: string): Promise<SprintListItem[]> {
@@ -226,4 +264,114 @@ export async function getSprintDashboardData(
         : null,
     },
   };
+}
+
+export interface SprintIssuesContext {
+  cache: {
+    data: JiraIssue[];
+    fetchedAt: Date;
+  } | null;
+  members: IssueGroupMember[];
+  sprint: SprintListItem;
+  storyPointsFieldId: string;
+  team: {
+    id: string;
+    jiraDomain: string;
+  };
+}
+
+export async function getSprintIssuesContext(
+  teamId: string,
+  sprintId: string,
+): Promise<SprintIssuesContext | null> {
+  noStore();
+
+  const [sprint, team, members, settings] = await Promise.all([
+    prisma.sprint.findFirst({
+      where: {
+        id: sprintId,
+        teamId,
+      },
+      select: {
+        id: true,
+        teamId: true,
+        jiraSprintId: true,
+        name: true,
+        plannedStart: true,
+        plannedEnd: true,
+        actualEnd: true,
+        activatedAt: true,
+        issueCache: {
+          select: {
+            data: true,
+            fetchedAt: true,
+          },
+        },
+      },
+    }),
+    prisma.team.findUnique({
+      where: {
+        id: teamId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    getTeamMembers(teamId),
+    prisma.settings.findFirst({
+      select: {
+        jiraDomain: true,
+        storyPointsFieldId: true,
+      },
+    }),
+  ]);
+
+  if (!sprint || !team || !settings?.jiraDomain) {
+    return null;
+  }
+
+  return {
+    cache: sprint.issueCache
+      ? {
+          data: readCachedJiraIssues(sprint.issueCache.data),
+          fetchedAt: sprint.issueCache.fetchedAt,
+        }
+      : null,
+    members: members.map((member) => ({
+      id: member.id,
+      jiraEmail: member.jiraEmail,
+      name: member.name,
+    })),
+    sprint: toSprintListItem(sprint),
+    storyPointsFieldId: settings.storyPointsFieldId || 'story_points',
+    team: {
+      id: team.id,
+      jiraDomain: settings.jiraDomain,
+    },
+  };
+}
+
+export async function upsertSprintIssueCache(
+  sprintId: string,
+  data: JiraIssue[],
+): Promise<Date> {
+  const issueCache = await prisma.sprintIssueCache.upsert({
+    where: {
+      sprintId,
+    },
+    create: {
+      sprintId,
+      data: toPrismaJsonValue(data),
+      fetchedAt: new Date(),
+    },
+    update: {
+      data: toPrismaJsonValue(data),
+      fetchedAt: new Date(),
+    },
+    select: {
+      fetchedAt: true,
+    },
+  });
+
+  return issueCache.fetchedAt;
 }

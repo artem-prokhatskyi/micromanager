@@ -113,6 +113,7 @@ export interface JiraIssuePriority {
 
 export interface JiraIssueHistoryItem {
   field: string;
+  fieldId?: string;
   toString: string | null;
   fromString: string | null;
 }
@@ -306,4 +307,33 @@ export interface SprintDashboardData {
   sprints: SprintOption[];
   members: MemberCapacityData[];
   totals: SprintCapacityTotals;
+}
+
+export interface IssueGroupMember {
+  id: string;
+  jiraEmail: string;
+  name: string;
+}
+
+export interface ProcessedIssue {
+  key: string;
+  title: string;
+  url: string;
+  label: 'planned' | 'unplanned';
+  storyPoints: number | null;
+  status: string;
+  priority: JiraIssuePriority['name'] | null;
+  assigneeEmail: string;
+}
+
+export interface DeveloperIssueGroup {
+  member: IssueGroupMember;
+  issues: ProcessedIssue[];
+  totalStoryPoints: number;
+}
+
+export interface SprintIssuesResponseData {
+  groups: DeveloperIssueGroup[];
+  cachedAt: string | null;
+  isStale: boolean;
 }

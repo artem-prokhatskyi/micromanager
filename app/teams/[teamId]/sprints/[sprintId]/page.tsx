@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { redirect } from 'next/navigation';
 
 import { SprintCapacityTable } from '@/components/sprints/sprint-capacity-table';
+import { SprintIssueSection } from '@/components/sprints/sprint-issue-section';
 import { getLatestSprint, getSprintDashboardData } from '@/lib/data/sprint';
 
 interface SprintDashboardPageProps {
@@ -47,6 +48,7 @@ export default async function SprintDashboardPage({ params }: SprintDashboardPag
         sprints={dashboardData.sprints}
         teamId={teamId}
       />
+      <SprintIssueSection members={dashboardData.members} sprintId={dashboardData.sprint.id} teamId={teamId} />
     </section>
   );
 }
