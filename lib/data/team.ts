@@ -1,6 +1,7 @@
 import { unstable_noStore as noStore } from 'next/cache';
 
 import { prisma } from '@/lib/prisma';
+import { sortWorkingDays } from '@/lib/utils';
 import type { TeamDetail, TeamMemberRecord, TeamOption } from '@/types';
 
 export interface ShellTeam {
@@ -81,7 +82,7 @@ export async function getTeamDetail(teamId: string): Promise<TeamDetail | null> 
 export async function getTeamMembers(teamId: string): Promise<TeamMemberRecord[]> {
   noStore();
 
-  return prisma.teamMember.findMany({
+  const members = await prisma.teamMember.findMany({
     where: {
       teamId,
     },
@@ -99,12 +100,17 @@ export async function getTeamMembers(teamId: string): Promise<TeamMemberRecord[]
       name: 'asc',
     },
   });
+
+  return members.map((member) => ({
+    ...member,
+    workingDays: sortWorkingDays(member.workingDays),
+  }));
 }
 
 export async function getTeamMember(teamId: string, memberId: string): Promise<TeamMemberRecord | null> {
   noStore();
 
-  return prisma.teamMember.findFirst({
+  const member = await prisma.teamMember.findFirst({
     where: {
       id: memberId,
       teamId,
@@ -120,4 +126,13 @@ export async function getTeamMember(teamId: string, memberId: string): Promise<T
       specialization: true,
     },
   });
+
+  if (!member) {
+    return null;
+  }
+
+  return {
+    ...member,
+    workingDays: sortWorkingDays(member.workingDays),
+  };
 }

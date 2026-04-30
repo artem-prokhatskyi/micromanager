@@ -21,7 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { TeamMemberRecord } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, sortWorkingDays } from '@/lib/utils';
 
 interface TeamMemberCardProps {
   member: TeamMemberRecord;
@@ -43,6 +43,7 @@ export function TeamMemberCard({ member }: TeamMemberCardProps): ReactElement {
   const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const sortedWorkingDays = sortWorkingDays(member.workingDays);
 
   async function handleDelete(event: MouseEvent<HTMLButtonElement>): Promise<void> {
     event.preventDefault();
@@ -102,7 +103,7 @@ export function TeamMemberCard({ member }: TeamMemberCardProps): ReactElement {
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {member.workingDays.map((day) => (
+        {sortedWorkingDays.map((day) => (
           <Badge key={day} variant="secondary">
             {day}
           </Badge>

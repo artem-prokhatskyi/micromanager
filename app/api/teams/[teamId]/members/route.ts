@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { getTeamMembers } from '@/lib/data/team';
 import { prisma } from '@/lib/prisma';
+import { sortWorkingDays } from '@/lib/utils';
 import { SPECIALIZATION, WEEK_DAY } from '@/types';
 import type { ApiResponse, TeamMemberRecord } from '@/types';
 
@@ -129,7 +130,7 @@ export async function POST(
         name: result.data.name.trim(),
         jiraEmail: result.data.jiraEmail.trim().toLowerCase(),
         githubUsername: result.data.githubUsername.trim(),
-        workingDays: result.data.workingDays,
+        workingDays: sortWorkingDays(result.data.workingDays),
         defaultFocusFactor: result.data.defaultFocusFactor,
         specialization: result.data.specialization ?? null,
       },

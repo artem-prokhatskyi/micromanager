@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 
 import { WEEK_DAYS } from '@/types';
 import type { WeekDay } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, sortWorkingDays } from '@/lib/utils';
 
 interface WorkingDaysToggleProps {
   value: WeekDay[];
@@ -15,11 +15,11 @@ interface WorkingDaysToggleProps {
 export function WorkingDaysToggle({ error, onChange, value }: WorkingDaysToggleProps): ReactElement {
   function toggleDay(day: WeekDay): void {
     if (value.includes(day)) {
-      onChange(value.filter((currentDay) => currentDay !== day));
+      onChange(sortWorkingDays(value.filter((currentDay) => currentDay !== day)));
       return;
     }
 
-    onChange([...value, day]);
+    onChange(sortWorkingDays([...value, day]));
   }
 
   return (

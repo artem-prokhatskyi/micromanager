@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { prisma } from '@/lib/prisma';
+import { sortWorkingDays } from '@/lib/utils';
 import { SPECIALIZATION, WEEK_DAY } from '@/types';
 import type { ApiResponse, TeamMemberRecord } from '@/types';
 
@@ -113,7 +114,7 @@ export async function PUT(
     }
 
     if (result.data.workingDays !== undefined) {
-      data.workingDays = result.data.workingDays;
+      data.workingDays = sortWorkingDays(result.data.workingDays);
     }
 
     if (result.data.defaultFocusFactor !== undefined) {
