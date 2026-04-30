@@ -194,3 +194,75 @@ export interface TeamMemberValidationErrors {
   defaultFocusFactor?: string;
   specialization?: string;
 }
+
+export interface NonWorkingDayRecord {
+  id: string;
+  memberId: string;
+  teamId: string;
+  date: string;
+  type: NonWorkingDayType;
+  halfDay: boolean;
+}
+
+export interface SprintRecord {
+  id: string;
+  teamId: string;
+  jiraSprintId: number;
+  name: string;
+  plannedStart: Date;
+  plannedEnd: Date;
+  actualEnd: Date | null;
+  activatedAt: Date | null;
+}
+
+export interface SprintListItem extends SprintRecord {
+  isOverdue: boolean;
+}
+
+export interface SprintOption {
+  id: string;
+  name: string;
+}
+
+export interface AddSprintFormValues {
+  teamId: string;
+  sprintName: string;
+  jiraSprintId: string;
+}
+
+export interface SprintValidationErrors {
+  teamId?: string;
+  sprintName?: string;
+  jiraSprintId?: string;
+}
+
+export interface AbsenceSummary {
+  holiday: number;
+  vacation: number;
+  sickleave: number;
+}
+
+export interface MemberCapacityData {
+  memberId: string;
+  name: string;
+  specialization: Specialization | null;
+  plannedWorkingDays: number;
+  focusFactor: number;
+  plannedCapacity: number;
+  actualWorkingDays: number | null;
+  actualCapacity: number | null;
+  absenceSummary: AbsenceSummary;
+}
+
+export interface SprintCapacityTotals {
+  plannedCapacity: number;
+  actualCapacity: number | null;
+}
+
+export interface SprintDashboardData {
+  team: TeamDetail;
+  sprint: SprintListItem;
+  sprints: SprintOption[];
+  members: MemberCapacityData[];
+  totals: SprintCapacityTotals;
+}

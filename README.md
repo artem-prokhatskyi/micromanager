@@ -38,10 +38,13 @@ The app requires these environment variables:
 ```bash
 npm install
 npm run build
+npm run dev
 npm run prisma:validate
 npm run prisma:generate
 npm run prisma:migrate:deploy
 ```
+
+When you run `npm run dev` on the host machine, the dev launcher automatically rewrites a Docker-style PostgreSQL hostname of `db` to `localhost` so the app can connect to the database container published on port `5432`. If you need a different host-side connection string, set `LOCAL_DATABASE_URL` before starting dev.
 
 ## Docker Notes
 

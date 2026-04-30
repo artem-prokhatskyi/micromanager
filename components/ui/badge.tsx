@@ -4,8 +4,10 @@ import { cn } from '@/lib/utils';
 
 type BadgeVariant = 'default' | 'secondary' | 'outline';
 
+type ExtendedBadgeVariant = BadgeVariant | 'destructive';
+
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: BadgeVariant;
+  variant?: ExtendedBadgeVariant;
 }
 
 export function Badge({ className, variant = 'default', ...props }: BadgeProps): ReactElement {
@@ -13,7 +15,8 @@ export function Badge({ className, variant = 'default', ...props }: BadgeProps):
     default: 'bg-primary/15 text-primary',
     secondary: 'bg-secondary text-secondary-foreground',
     outline: 'border border-border bg-transparent text-foreground',
-  } satisfies Record<BadgeVariant, string>;
+    destructive: 'bg-red-500/15 text-red-200 ring-1 ring-inset ring-red-500/40',
+  } satisfies Record<ExtendedBadgeVariant, string>;
 
   return (
     <span

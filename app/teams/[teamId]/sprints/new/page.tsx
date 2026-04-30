@@ -1,13 +1,42 @@
 import type { ReactElement } from 'react';
 
-import { PagePlaceholder } from '@/components/shared/page-placeholder';
+import { redirect } from 'next/navigation';
 
-export default function NewSprintPage(): ReactElement {
+import { AddSprintForm } from '@/components/sprints/add-sprint-form';
+import { getFirstTeam, getTeamById, getTeamOptions } from '@/lib/data/team';
+
+interface NewSprintPageProps {
+  params: Promise<{
+    teamId: string;
+  }>;
+}
+
+export default async function NewSprintPage({ params }: NewSprintPageProps): Promise<ReactElement> {
+  const { teamId } = await params;
+  const team = await getTeamById(teamId);
+
+  if (!team) {
+    const firstTeam = await getFirstTeam();
+
+    if (firstTeam) {
+      redirect(`/teams/${firstTeam.id}/sprints/new`);
+    }
+
+    redirect('/teams/new');
+  }
+
+  const teams = await getTeamOptions();
+
   return (
-    <PagePlaceholder
-      badge="RFC-005"
-      description="Sprint import and metadata lookup from Jira will be implemented here. The route exists now so the shell can navigate to a consistent sprint creation entry point."
-      title="Add Sprint"
-    />
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">RFC-005</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Add Sprint</h1>
+        <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+          Find the sprint in Jira, attach it to the team, and use its dates as the source of truth for capacity planning.
+        </p>
+      </div>
+      <AddSprintForm teamId={teamId} teams={teams} />
+    </section>
   );
 }
