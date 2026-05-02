@@ -19,11 +19,12 @@ interface IssuePipelineSprintContext {
 }
 
 const PRIORITY_ORDER: Record<string, number> = {
-  Highest: 0,
-  High: 1,
-  Medium: 2,
-  Low: 3,
-  Lowest: 4,
+  'David Jackson': 0,
+  Critical: 1,
+  High: 2,
+  Medium: 3,
+  Low: 4,
+  Lowest: 5,
 };
 
 function filterHistoriesForSprint(

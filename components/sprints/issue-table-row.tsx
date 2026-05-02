@@ -11,27 +11,79 @@ interface IssueTableRowProps {
 function getStatusBadgeClassName(status: string): string {
   const normalizedStatus = status.trim().toLowerCase();
 
+  if (
+    normalizedStatus.includes('block')
+    || normalizedStatus.includes('stuck')
+    || normalizedStatus.includes('impediment')
+    || normalizedStatus.includes('waiting')
+  ) {
+    return 'border-red-400/40 bg-red-500/15 text-red-200 ring-1 ring-inset ring-red-500/35';
+  }
+
   if (normalizedStatus.includes('done') || normalizedStatus.includes('closed') || normalizedStatus.includes('resolved')) {
-    return 'bg-emerald-500/15 text-emerald-200 ring-1 ring-inset ring-emerald-500/40';
+    return 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200 ring-1 ring-inset ring-emerald-500/35';
   }
 
-  if (normalizedStatus.includes('review') || normalizedStatus.includes('qa') || normalizedStatus.includes('test')) {
-    return 'bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-500/40';
+  if (
+    normalizedStatus.includes('review')
+    || normalizedStatus.includes('qa')
+    || normalizedStatus.includes('test')
+    || normalizedStatus.includes('verify')
+    || normalizedStatus.includes('acceptance')
+  ) {
+    return 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200 ring-1 ring-inset ring-cyan-500/35';
   }
 
-  if (normalizedStatus.includes('progress') || normalizedStatus.includes('develop') || normalizedStatus.includes('implement')) {
-    return 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/40';
+  if (
+    normalizedStatus.includes('progress')
+    || normalizedStatus.includes('develop')
+    || normalizedStatus.includes('implement')
+    || normalizedStatus.includes('coding')
+    || normalizedStatus.includes('working')
+  ) {
+    return 'border-amber-400/40 bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/35';
   }
 
-  if (normalizedStatus.includes('todo') || normalizedStatus.includes('open') || normalizedStatus.includes('backlog') || normalizedStatus.includes('selected')) {
-    return 'bg-slate-500/15 text-slate-200 ring-1 ring-inset ring-slate-500/40';
+  if (
+    normalizedStatus.includes('todo')
+    || normalizedStatus.includes('to do')
+    || normalizedStatus.includes('open')
+    || normalizedStatus.includes('backlog')
+    || normalizedStatus.includes('selected')
+    || normalizedStatus.includes('groom')
+    || normalizedStatus.includes('refine')
+  ) {
+    return 'border-slate-400/40 bg-slate-500/15 text-slate-200 ring-1 ring-inset ring-slate-500/35';
   }
 
-  if (normalizedStatus.includes('block')) {
-    return 'bg-red-500/15 text-red-200 ring-1 ring-inset ring-red-500/40';
+  if (
+    normalizedStatus.includes('ready')
+    || normalizedStatus.includes('next')
+    || normalizedStatus.includes('queued')
+  ) {
+    return 'border-indigo-400/40 bg-indigo-500/15 text-indigo-200 ring-1 ring-inset ring-indigo-500/35';
   }
 
-  return 'bg-violet-500/15 text-violet-200 ring-1 ring-inset ring-violet-500/40';
+  return 'border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-200 ring-1 ring-inset ring-fuchsia-500/35';
+}
+
+function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priority']>): string {
+  switch (priority) {
+    case 'David Jackson':
+      return 'animate-pulse border-red-500/60 bg-red-500/20 text-red-100 ring-1 ring-inset ring-red-500/45';
+    case 'Critical':
+      return 'border-red-400/40 bg-red-500/15 text-red-200 ring-1 ring-inset ring-red-500/35';
+    case 'High':
+      return 'border-orange-400/40 bg-orange-500/15 text-orange-200 ring-1 ring-inset ring-orange-500/35';
+    case 'Medium':
+      return 'border-amber-400/40 bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/35';
+    case 'Low':
+      return 'border-sky-400/40 bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-500/35';
+    case 'Lowest':
+      return 'border-slate-400/40 bg-slate-500/15 text-slate-200 ring-1 ring-inset ring-slate-500/35';
+    default:
+      return 'border-border bg-transparent text-foreground';
+  }
 }
 
 export function IssueTableRow({ issue }: IssueTableRowProps): ReactElement {
@@ -39,6 +91,7 @@ export function IssueTableRow({ issue }: IssueTableRowProps): ReactElement {
     ? undefined
     : 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/40';
   const statusBadgeClassName = getStatusBadgeClassName(issue.status);
+  const priorityBadgeClassName = issue.priority ? getPriorityBadgeClassName(issue.priority) : null;
 
   return (
     <TableRow>
@@ -56,6 +109,11 @@ export function IssueTableRow({ issue }: IssueTableRowProps): ReactElement {
         </div>
       </TableCell>
       <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell>
+      <TableCell>
+        {issue.priority ? (
+          <Badge className={priorityBadgeClassName ?? undefined} variant="outline">{issue.priority}</Badge>
+        ) : '—'}
+      </TableCell>
       <TableCell>
         <Badge className={statusBadgeClassName} variant="outline">{issue.status}</Badge>
       </TableCell>

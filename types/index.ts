@@ -108,7 +108,7 @@ export interface JiraIssueAssignee {
 }
 
 export interface JiraIssuePriority {
-  name: 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
+  name: 'David Jackson' | 'Critical' | 'High' | 'Medium' | 'Low' | 'Lowest';
 }
 
 export interface JiraIssueHistoryItem {
