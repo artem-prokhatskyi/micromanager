@@ -42,6 +42,9 @@ interface JiraSprintResponse extends JiraSprintMetadata {}
 
 interface JiraIssueSearchResponse {
   issues: JiraIssue[];
+  maxResults?: number;
+  startAt?: number;
+  total?: number;
 }
 
 interface JiraRequestLogContext {
@@ -216,6 +219,39 @@ async function jiraFetch<T>(path: string, basePath: string = JIRA_API_BASE_PATH)
   }
 }
 
+function parseJiraDate(value?: string): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+export function resolveJiraSprintDates(
+  sprint: Pick<JiraSprintMetadata, 'startDate' | 'endDate' | 'activatedDate' | 'completeDate'>,
+): {
+  actualEnd: Date | null;
+  activatedAt: Date | null;
+  plannedEnd: Date;
+  plannedStart: Date;
+} {
+  const activatedAt = parseJiraDate(sprint.activatedDate);
+  const actualEnd = parseJiraDate(sprint.completeDate);
+  const fallbackDate = new Date();
+  const plannedStart = parseJiraDate(sprint.startDate) ?? activatedAt ?? actualEnd ?? fallbackDate;
+  const plannedEndCandidate = parseJiraDate(sprint.endDate) ?? actualEnd ?? plannedStart;
+  const plannedEnd = plannedEndCandidate < plannedStart ? plannedStart : plannedEndCandidate;
+
+  return {
+    actualEnd,
+    activatedAt,
+    plannedEnd,
+    plannedStart,
+  };
+}
+
 export async function validateJiraConnection(): Promise<JiraConnectionResult> {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
@@ -314,10 +350,36 @@ export async function getSprintByJiraId(jiraSprintId: number): Promise<JiraSprin
 export async function fetchSprintIssues(jiraSprintId: number): Promise<JiraIssue[]> {
   const { storyPointsFieldId } = await getJiraConfig();
   const fields = ['summary', 'assignee', 'priority', 'status', storyPointsFieldId].join(',');
-  const issueResponse = await jiraFetch<JiraIssueSearchResponse>(
-    `/sprint/${jiraSprintId}/issue?expand=changelog&fields=${encodeURIComponent(fields)}&maxResults=200`,
-    JIRA_AGILE_BASE_PATH,
-  );
+  const pageSize = 200;
+  const issues: JiraIssue[] = [];
+  let startAt = 0;
+  let hasMoreResults = true;
 
-  return issueResponse.issues;
+  while (hasMoreResults) {
+    const issueResponse = await jiraFetch<JiraIssueSearchResponse>(
+      `/sprint/${jiraSprintId}/issue?expand=changelog&fields=${encodeURIComponent(fields)}&maxResults=${pageSize}&startAt=${startAt}`,
+      JIRA_AGILE_BASE_PATH,
+    );
+
+    issues.push(...issueResponse.issues);
+
+    const receivedCount = issueResponse.issues.length;
+    const nextStartAt = startAt + receivedCount;
+    const reportedTotal = issueResponse.total;
+    const reportedPageSize = issueResponse.maxResults ?? pageSize;
+
+    if (receivedCount === 0 || receivedCount < reportedPageSize) {
+      hasMoreResults = false;
+      continue;
+    }
+
+    if (typeof reportedTotal === 'number' && nextStartAt >= reportedTotal) {
+      hasMoreResults = false;
+      continue;
+    }
+
+    startAt = nextStartAt;
+  }
+
+  return issues;
 }

@@ -43,22 +43,33 @@ function sortHistoriesAscending(histories: JiraIssueHistory[]): JiraIssueHistory
   );
 }
 
-function getLastAssigneeEmail(issue: JiraIssue, histories: JiraIssueHistory[]): string | null {
-  const currentAssigneeEmail = issue.fields.assignee?.emailAddress ?? null;
+function normalizeAssigneeIdentifier(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getLastAssigneeIdentifier(issue: JiraIssue, histories: JiraIssueHistory[]): string | null {
+  const currentAssigneeEmail = normalizeAssigneeIdentifier(issue.fields.assignee?.emailAddress);
+  const currentAssigneeName = normalizeAssigneeIdentifier(issue.fields.assignee?.displayName);
 
   for (const history of [...histories].reverse()) {
     const assigneeItem = [...history.items].reverse().find((item) => item.field === 'assignee');
 
-    if (!assigneeItem?.toString) {
+    const nextAssignee = normalizeAssigneeIdentifier(assigneeItem?.toString);
+
+    if (!nextAssignee) {
       continue;
     }
 
-    if (assigneeItem.toString.includes('@')) {
-      return assigneeItem.toString.trim().toLowerCase();
-    }
+    return nextAssignee;
   }
 
-  return currentAssigneeEmail ? currentAssigneeEmail.trim().toLowerCase() : null;
+  return currentAssigneeEmail ?? currentAssigneeName;
 }
 
 function normalizeStoryPoints(value: number | null, estimateInHours: boolean): number | null {
@@ -159,15 +170,11 @@ function getIssueLabel(
 function toProcessedIssue(
   issue: JiraIssue,
   sprint: IssuePipelineSprintContext,
+  assigneeEmail: string,
 ): ProcessedIssue | null {
   const filteredHistories = sortHistoriesAscending(
     filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
   );
-  const assigneeEmail = getLastAssigneeEmail(issue, filteredHistories);
-
-  if (!assigneeEmail) {
-    return null;
-  }
 
   return {
     key: issue.key,
@@ -192,9 +199,34 @@ export function processSprintIssues(
   sprint: IssuePipelineSprintContext,
   members: IssueGroupMember[],
 ): DeveloperIssueGroup[] {
-  const membersByEmail = new Map<string, IssueGroupMember>(
-    members.map((member) => [member.jiraEmail.trim().toLowerCase(), member]),
-  );
+  const membersByEmail = new Map<string, IssueGroupMember>();
+  const uniqueMembersByName = new Map<string, IssueGroupMember>();
+  const duplicateMemberNames = new Set<string>();
+
+  for (const member of members) {
+    const normalizedEmail = normalizeAssigneeIdentifier(member.jiraEmail);
+
+    if (normalizedEmail) {
+      membersByEmail.set(normalizedEmail, member);
+    }
+
+    const normalizedName = normalizeAssigneeIdentifier(member.name);
+
+    if (!normalizedName) {
+      continue;
+    }
+
+    if (uniqueMembersByName.has(normalizedName)) {
+      uniqueMembersByName.delete(normalizedName);
+      duplicateMemberNames.add(normalizedName);
+      continue;
+    }
+
+    if (!duplicateMemberNames.has(normalizedName)) {
+      uniqueMembersByName.set(normalizedName, member);
+    }
+  }
+
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
   for (const issue of issues) {
@@ -202,15 +234,24 @@ export function processSprintIssues(
       continue;
     }
 
-    const processedIssue = toProcessedIssue(issue, sprint);
+    const filteredHistories = sortHistoriesAscending(
+      filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
+    );
+    const assigneeIdentifier = getLastAssigneeIdentifier(issue, filteredHistories);
 
-    if (!processedIssue) {
+    if (!assigneeIdentifier) {
       continue;
     }
 
-    const member = membersByEmail.get(processedIssue.assigneeEmail);
+    const member = membersByEmail.get(assigneeIdentifier) ?? uniqueMembersByName.get(assigneeIdentifier);
 
     if (!member) {
+      continue;
+    }
+
+    const processedIssue = toProcessedIssue(issue, sprint, member.jiraEmail);
+
+    if (!processedIssue) {
       continue;
     }
 

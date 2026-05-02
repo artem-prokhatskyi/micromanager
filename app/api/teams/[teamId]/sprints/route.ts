@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { getTeamSprints } from '@/lib/data/sprint';
-import { findSprintsByName, JiraRequestError } from '@/lib/jira';
+import { findSprintsByName, JiraRequestError, resolveJiraSprintDates } from '@/lib/jira';
 import { prisma } from '@/lib/prisma';
 import type { ApiResponse, JiraSprintMetadata, SprintListItem, SprintRecord } from '@/types';
 
@@ -36,14 +36,16 @@ function mapValidationErrors(error: z.ZodError): Record<string, string> {
 }
 
 function toSprintCreateData(teamId: string, sprint: JiraSprintMetadata): Pick<SprintRecord, 'teamId' | 'jiraSprintId' | 'name' | 'plannedStart' | 'plannedEnd' | 'actualEnd' | 'activatedAt'> {
+  const dates = resolveJiraSprintDates(sprint);
+
   return {
     teamId,
     jiraSprintId: sprint.id,
     name: sprint.name,
-    plannedStart: new Date(sprint.startDate),
-    plannedEnd: new Date(sprint.endDate),
-    actualEnd: sprint.completeDate ? new Date(sprint.completeDate) : null,
-    activatedAt: sprint.activatedDate ? new Date(sprint.activatedDate) : null,
+    plannedStart: dates.plannedStart,
+    plannedEnd: dates.plannedEnd,
+    actualEnd: dates.actualEnd,
+    activatedAt: dates.activatedAt,
   };
 }
 

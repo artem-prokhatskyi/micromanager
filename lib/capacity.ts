@@ -47,6 +47,10 @@ export function workingDaysInRange(
   return Math.max(0, count);
 }
 
+export function actualStartDate(sprint: Pick<SprintRecord, 'plannedStart' | 'activatedAt'>): Date {
+  return sprint.activatedAt ? startOfUtcDay(sprint.activatedAt) : startOfUtcDay(sprint.plannedStart);
+}
+
 export function actualEndDate(sprint: Pick<SprintRecord, 'plannedEnd' | 'actualEnd'>): Date {
   if (sprint.actualEnd) {
     return sprint.actualEnd;

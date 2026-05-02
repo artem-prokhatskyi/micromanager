@@ -96,8 +96,8 @@ export interface JiraSprintMetadata {
   id: number;
   name: string;
   state: 'active' | 'closed' | 'future';
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
   completeDate?: string;
   activatedDate?: string;
 }

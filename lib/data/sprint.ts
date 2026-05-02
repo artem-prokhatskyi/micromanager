@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 
 import {
   actualEndDate,
+  actualStartDate,
   calculateCapacity,
   isSprintOverdue,
   summarizeAbsencesByType,
@@ -161,6 +162,7 @@ export async function getSprintDashboardData(
     return null;
   }
 
+  const sprintStartForCapacity = actualStartDate(sprint);
   const sprintEndForActuals = actualEndDate(sprint);
   const memberIds = members.map((member) => member.id);
 
@@ -181,7 +183,7 @@ export async function getSprintDashboardData(
           in: memberIds,
         },
         date: {
-          gte: sprint.plannedStart,
+          gte: sprintStartForCapacity,
           lte: sprintEndForActuals,
         },
       },
@@ -211,13 +213,13 @@ export async function getSprintDashboardData(
     const plannedNonWorkingDays = memberNonWorkingDays.filter((record) => {
       const date = new Date(record.date);
 
-      return date >= sprint.plannedStart && date <= sprint.plannedEnd;
+      return date >= sprintStartForCapacity && date <= sprint.plannedEnd;
     });
     const focusFactor = overridesByMemberId.get(member.id) ?? member.defaultFocusFactor;
     const plannedWorkingDays = workingDaysInRange(
       member.workingDays,
       plannedNonWorkingDays,
-      sprint.plannedStart,
+      sprintStartForCapacity,
       sprint.plannedEnd,
     );
     const plannedCapacity = calculateCapacity(plannedWorkingDays, focusFactor);
@@ -225,7 +227,7 @@ export async function getSprintDashboardData(
       ? workingDaysInRange(
           member.workingDays,
           memberNonWorkingDays,
-          sprint.plannedStart,
+          sprintStartForCapacity,
           sprintEndForActuals,
         )
       : null;

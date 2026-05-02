@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getSprintById } from '@/lib/data/sprint';
-import { getSprintByJiraId } from '@/lib/jira';
+import { getSprintByJiraId, resolveJiraSprintDates } from '@/lib/jira';
 import { prisma } from '@/lib/prisma';
 import type { ApiResponse, SprintListItem } from '@/types';
 
@@ -57,6 +57,7 @@ export async function PUT(
     }
 
     const jiraSprint = await getSprintByJiraId(sprint.jiraSprintId);
+    const dates = resolveJiraSprintDates(jiraSprint);
 
     await prisma.sprint.update({
       where: {
@@ -64,10 +65,10 @@ export async function PUT(
       },
       data: {
         name: jiraSprint.name,
-        plannedStart: new Date(jiraSprint.startDate),
-        plannedEnd: new Date(jiraSprint.endDate),
-        actualEnd: jiraSprint.completeDate ? new Date(jiraSprint.completeDate) : null,
-        activatedAt: jiraSprint.activatedDate ? new Date(jiraSprint.activatedDate) : null,
+        plannedStart: dates.plannedStart,
+        plannedEnd: dates.plannedEnd,
+        actualEnd: dates.actualEnd,
+        activatedAt: dates.activatedAt,
       },
     });
 
