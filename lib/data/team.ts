@@ -75,6 +75,7 @@ export async function getTeamDetail(teamId: string): Promise<TeamDetail | null> 
       name: true,
       jiraSpace: true,
       githubRepositories: true,
+      estimateInHours: true,
     },
   });
 }

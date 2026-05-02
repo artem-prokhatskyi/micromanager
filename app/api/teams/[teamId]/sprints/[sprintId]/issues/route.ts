@@ -50,6 +50,7 @@ export async function GET(
           sprint: {
             actualEnd: context.sprint.actualEnd,
             activatedAt: context.sprint.activatedAt,
+            estimateInHours: context.team.estimateInHours,
             jiraDomain: context.team.jiraDomain,
             plannedStart: context.sprint.plannedStart,
             sprintJiraId: context.sprint.jiraSprintId,
@@ -73,6 +74,7 @@ export async function GET(
         sprint: {
           actualEnd: context.sprint.actualEnd,
           activatedAt: context.sprint.activatedAt,
+          estimateInHours: context.team.estimateInHours,
           jiraDomain: context.team.jiraDomain,
           plannedStart: context.sprint.plannedStart,
           sprintJiraId: context.sprint.jiraSprintId,
@@ -123,6 +125,7 @@ export async function POST(
         sprint: {
           actualEnd: context.sprint.actualEnd,
           activatedAt: context.sprint.activatedAt,
+          estimateInHours: context.team.estimateInHours,
           jiraDomain: context.team.jiraDomain,
           plannedStart: context.sprint.plannedStart,
           sprintJiraId: context.sprint.jiraSprintId,

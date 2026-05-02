@@ -149,6 +149,7 @@ export async function GET(
       issueGroups = processSprintIssues(issues, {
         actualEnd: issuesContext.sprint.actualEnd,
         activatedAt: issuesContext.sprint.activatedAt,
+        estimateInHours: issuesContext.team.estimateInHours,
         jiraDomain: issuesContext.team.jiraDomain,
         plannedStart: issuesContext.sprint.plannedStart,
         sprintJiraId: issuesContext.sprint.jiraSprintId,

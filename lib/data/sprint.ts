@@ -275,6 +275,7 @@ export interface SprintIssuesContext {
   sprint: SprintListItem;
   storyPointsFieldId: string;
   team: {
+    estimateInHours: boolean;
     id: string;
     jiraDomain: string;
   };
@@ -314,6 +315,7 @@ export async function getSprintIssuesContext(
         id: teamId,
       },
       select: {
+        estimateInHours: true,
         id: true,
       },
     }),
@@ -345,6 +347,7 @@ export async function getSprintIssuesContext(
     sprint: toSprintListItem(sprint),
     storyPointsFieldId: settings.storyPointsFieldId || 'story_points',
     team: {
+      estimateInHours: team.estimateInHours,
       id: team.id,
       jiraDomain: settings.jiraDomain,
     },

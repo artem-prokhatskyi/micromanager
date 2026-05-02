@@ -9,6 +9,7 @@ const createTeamSchema = z.object({
   name: z.string().trim().min(1, 'Team name is required.'),
   jiraSpace: z.string().trim().min(1, 'Jira space is required.'),
   githubRepositories: z.array(z.string().trim().min(1)).optional().default([]),
+  estimateInHours: z.boolean().optional().default(false),
 });
 
 function mapValidationErrors(error: z.ZodError): Record<string, string> {
@@ -46,6 +47,7 @@ export async function POST(request: Request): Promise<NextResponse<ApiResponse<{
         name: result.data.name.trim(),
         jiraSpace: result.data.jiraSpace.trim().toUpperCase(),
         githubRepositories: result.data.githubRepositories,
+        estimateInHours: result.data.estimateInHours,
       },
       select: {
         id: true,

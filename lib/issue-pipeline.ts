@@ -10,6 +10,7 @@ import type {
 interface IssuePipelineSprintContext {
   actualEnd: Date | null;
   activatedAt: Date | null;
+  estimateInHours: boolean;
   jiraDomain: string;
   plannedStart: Date;
   sprintJiraId: number;
@@ -60,7 +61,20 @@ function getLastAssigneeEmail(issue: JiraIssue, histories: JiraIssueHistory[]): 
   return currentAssigneeEmail ? currentAssigneeEmail.trim().toLowerCase() : null;
 }
 
-function getStoryPoints(issue: JiraIssue, histories: JiraIssueHistory[], storyPointsFieldId: string): number | null {
+function normalizeStoryPoints(value: number | null, estimateInHours: boolean): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  return estimateInHours ? value / 8 : value;
+}
+
+function getStoryPoints(
+  issue: JiraIssue,
+  histories: JiraIssueHistory[],
+  storyPointsFieldId: string,
+  estimateInHours: boolean,
+): number | null {
   for (const history of [...histories].reverse()) {
     const storyPointsItem = [...history.items].reverse().find(
       (item) =>
@@ -76,13 +90,13 @@ function getStoryPoints(issue: JiraIssue, histories: JiraIssueHistory[], storyPo
 
     const parsedValue = Number.parseFloat(storyPointsItem.toString ?? '');
 
-    return Number.isNaN(parsedValue) ? null : parsedValue;
+    return Number.isNaN(parsedValue) ? null : normalizeStoryPoints(parsedValue, estimateInHours);
   }
 
   const currentValue = issue.fields[storyPointsFieldId];
   const parsedCurrentValue = Number.parseFloat(String(currentValue ?? ''));
 
-  return Number.isNaN(parsedCurrentValue) ? null : parsedCurrentValue;
+  return Number.isNaN(parsedCurrentValue) ? null : normalizeStoryPoints(parsedCurrentValue, estimateInHours);
 }
 
 function getLastStatus(issue: JiraIssue, histories: JiraIssueHistory[]): string {
@@ -166,7 +180,7 @@ function toProcessedIssue(
       sprint.sprintJiraId,
       sprint.sprintName,
     ),
-    storyPoints: getStoryPoints(issue, filteredHistories, sprint.storyPointsFieldId),
+    storyPoints: getStoryPoints(issue, filteredHistories, sprint.storyPointsFieldId, sprint.estimateInHours),
     status: getLastStatus(issue, filteredHistories),
     priority: issue.fields.priority?.name ?? null,
     assigneeEmail,

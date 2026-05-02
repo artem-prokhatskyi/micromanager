@@ -6,15 +6,21 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import type { ApiError, ApiSuccess, CreateTeamValues, TeamValidationErrors } from '@/types';
+import type { ApiError, ApiSuccess, CreateTeamValues, TeamDetail, TeamValidationErrors } from '@/types';
 
 interface CreateTeamResponse {
   id: string;
   name: string;
+}
+
+interface CreateTeamFormProps {
+  initialValues?: TeamDetail;
+  mode?: 'create' | 'edit';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -36,14 +42,19 @@ function parseRepositories(value: string): string[] {
     .filter(Boolean);
 }
 
-export function CreateTeamForm(): ReactElement {
+function getDefaultValues(initialValues?: TeamDetail): CreateTeamValues {
+  return {
+    name: initialValues?.name ?? '',
+    jiraSpace: initialValues?.jiraSpace ?? '',
+    githubRepositories: initialValues?.githubRepositories.join(', ') ?? '',
+    estimateInHours: initialValues?.estimateInHours ?? false,
+  };
+}
+
+export function CreateTeamForm({ initialValues, mode = 'create' }: CreateTeamFormProps): ReactElement {
   const router = useRouter();
   const { toast } = useToast();
-  const [values, setValues] = useState<CreateTeamValues>({
-    name: '',
-    jiraSpace: '',
-    githubRepositories: '',
-  });
+  const [values, setValues] = useState<CreateTeamValues>(getDefaultValues(initialValues));
   const [errors, setErrors] = useState<TeamValidationErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -55,8 +66,8 @@ export function CreateTeamForm(): ReactElement {
     setIsSaving(true);
 
     try {
-      const response = await fetch('/api/teams', {
-        method: 'POST',
+      const response = await fetch(mode === 'create' ? '/api/teams' : `/api/teams/${initialValues?.id}`, {
+        method: mode === 'create' ? 'POST' : 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -64,13 +75,14 @@ export function CreateTeamForm(): ReactElement {
           name: values.name,
           jiraSpace: values.jiraSpace,
           githubRepositories: parseRepositories(values.githubRepositories),
+          estimateInHours: values.estimateInHours,
         }),
       });
       const payload: unknown = await response.json();
 
       if (response.ok && isApiSuccess(payload)) {
-        toast({ title: `Created team ${payload.data.name}` });
-        router.push(`/teams/${payload.data.id}/members/new`);
+        toast({ title: mode === 'create' ? `Created team ${payload.data.name}` : `Updated team ${payload.data.name}` });
+        router.push(mode === 'create' ? `/teams/${payload.data.id}/members/new` : `/teams/${payload.data.id}/sprints`);
         router.refresh();
         return;
       }
@@ -88,9 +100,9 @@ export function CreateTeamForm(): ReactElement {
         return;
       }
 
-      setSubmitError('Failed to create team.');
+      setSubmitError(mode === 'create' ? 'Failed to create team.' : 'Failed to update team.');
     } catch {
-      setSubmitError('Failed to create team.');
+      setSubmitError(mode === 'create' ? 'Failed to create team.' : 'Failed to update team.');
     } finally {
       setIsSaving(false);
     }
@@ -99,9 +111,11 @@ export function CreateTeamForm(): ReactElement {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create Team</CardTitle>
+        <CardTitle>{mode === 'create' ? 'Create Team' : 'Edit Team'}</CardTitle>
         <CardDescription>
-          Add a Jira-backed team so member management, sprint imports, and capacity views can anchor to a real project key.
+          {mode === 'create'
+            ? 'Add a Jira-backed team so member management, sprint imports, and capacity views can anchor to a real project key.'
+            : 'Update the team identity and repository mapping used by sprint imports, capacity planning, and sidebar navigation.'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -151,9 +165,22 @@ export function CreateTeamForm(): ReactElement {
             {errors.githubRepositories ? <p className="text-sm text-red-300">{errors.githubRepositories}</p> : null}
           </div>
 
+          <label className="flex items-center gap-3 text-sm text-foreground">
+            <Checkbox
+              checked={values.estimateInHours}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  estimateInHours: event.target.checked,
+                }))
+              }
+            />
+            <span>Estimate in hours</span>
+          </label>
+
           <div className="flex justify-end">
             <Button disabled={isSaving} type="submit">
-              {isSaving ? 'Creating...' : 'Create team'}
+              {isSaving ? (mode === 'create' ? 'Creating...' : 'Saving...') : mode === 'create' ? 'Create team' : 'Save changes'}
             </Button>
           </div>
         </form>

@@ -145,6 +145,7 @@ export interface CreateTeamValues {
   name: string;
   jiraSpace: string;
   githubRepositories: string;
+  estimateInHours: boolean;
 }
 
 export interface TeamValidationErrors {
@@ -163,6 +164,7 @@ export interface TeamDetail {
   name: string;
   jiraSpace: string;
   githubRepositories: string[];
+  estimateInHours: boolean;
 }
 
 export interface TeamMemberRecord {

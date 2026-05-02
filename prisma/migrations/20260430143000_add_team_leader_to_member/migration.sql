@@ -1,0 +1,3 @@
+-- Restored placeholder migration.
+-- The original team leader schema change was reverted from the current Prisma schema,
+-- so this migration is intentionally a no-op to keep Prisma migration history consistent.

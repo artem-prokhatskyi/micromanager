@@ -33,6 +33,9 @@ interface JiraBoardSearchResponse {
 
 interface JiraSprintSearchResponse {
   values: JiraSprintMetadata[];
+  isLast?: boolean;
+  maxResults?: number;
+  startAt?: number;
 }
 
 interface JiraSprintResponse extends JiraSprintMetadata {}
@@ -261,14 +264,36 @@ export async function findSprintsByName(
     return [];
   }
 
-  const sprintResponse = await jiraFetch<JiraSprintSearchResponse>(
-    `/board/${boardId}/sprint?maxResults=50`,
-    JIRA_AGILE_BASE_PATH,
-  );
+  const collectedSprints: JiraSprintMetadata[] = [];
+  let startAt = 0;
+  let hasMoreResults = true;
+
+  while (hasMoreResults) {
+    const sprintResponse = await jiraFetch<JiraSprintSearchResponse>(
+      `/board/${boardId}/sprint?state=active,future&maxResults=50&startAt=${startAt}`,
+      JIRA_AGILE_BASE_PATH,
+    );
+
+    collectedSprints.push(...sprintResponse.values);
+
+    if (sprintResponse.isLast === true) {
+      hasMoreResults = false;
+      continue;
+    }
+
+    const pageSize = sprintResponse.maxResults ?? sprintResponse.values.length;
+
+    if (sprintResponse.values.length < pageSize || sprintResponse.values.length === 0) {
+      hasMoreResults = false;
+      continue;
+    }
+
+    startAt += pageSize;
+  }
 
   const normalizedSprintName = sprintName.trim().toLowerCase();
 
-  return sprintResponse.values.filter(
+  return collectedSprints.filter(
     (sprint) => sprint.name.trim().toLowerCase() === normalizedSprintName,
   );
 }
