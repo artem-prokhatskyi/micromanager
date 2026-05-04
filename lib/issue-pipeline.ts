@@ -98,6 +98,10 @@ function buildMemberLookup(members: IssueGroupMember[]): MemberLookup {
   };
 }
 
+function getDeveloperMembers(members: IssueGroupMember[]): IssueGroupMember[] {
+  return members.filter((member) => !member.specialization.includes('qa'));
+}
+
 function findMemberForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssueGroupMember | null {
   const assigneeIdentifier = getLastAssigneeIdentifier(issue, histories);
 
@@ -234,16 +238,37 @@ function getStoryPoints(
   return Number.isNaN(parsedCurrentValue) ? null : normalizeStoryPoints(parsedCurrentValue, estimateInHours);
 }
 
-function getLastStatus(issue: JiraIssue, histories: JiraIssueHistory[]): string {
+function getStatusAtDate(issue: JiraIssue, histories: JiraIssueHistory[], targetDate: Date): string {
+  const issueCreatedAt = parseIssueCreatedAt(issue);
+
+  if (issueCreatedAt && issueCreatedAt.getTime() > targetDate.getTime()) {
+    return 'Not created';
+  }
+
+  let status = issue.fields.status.name;
+
   for (const history of [...histories].reverse()) {
     const statusItem = [...history.items].reverse().find((item) => item.field === 'status');
 
-    if (statusItem?.toString) {
-      return statusItem.toString;
+    if (!statusItem) {
+      continue;
     }
+
+    const changedAt = new Date(history.created);
+
+    if (Number.isNaN(changedAt.getTime())) {
+      continue;
+    }
+
+    if (changedAt.getTime() > targetDate.getTime()) {
+      status = statusItem.fromString ?? status;
+      continue;
+    }
+
+    return status;
   }
 
-  return issue.fields.status.name;
+  return status;
 }
 
 function getIssueLabel(
@@ -373,9 +398,14 @@ function toProcessedIssue(
   label: ProcessedIssue['label'],
   histories?: JiraIssueHistory[],
 ): ProcessedIssue | null {
+  const allHistories = sortHistoriesAscending(issue.changelog.histories);
   const filteredHistories = histories ?? sortHistoriesAscending(
-    filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
+    filterHistoriesForSprint(allHistories, sprint.actualEnd),
   );
+  const sprintStart = sprint.activatedAt ?? sprint.plannedStart;
+  const sprintEnd = sprint.actualEnd ?? new Date();
+  const statusAtSprintStart = getStatusAtDate(issue, allHistories, sprintStart);
+  const statusAtSprintEnd = getStatusAtDate(issue, allHistories, sprintEnd);
 
   return {
     key: issue.key,
@@ -391,7 +421,9 @@ function toProcessedIssue(
           sprint.sprintName,
         ),
     storyPoints: getStoryPoints(issue, filteredHistories, sprint.storyPointsFieldId, sprint.estimateInHours),
-    status: getLastStatus(issue, filteredHistories),
+    status: statusAtSprintEnd,
+    statusAtSprintStart,
+    statusAtSprintEnd,
     priority: issue.fields.priority?.name ?? null,
     assigneeEmail,
   };
@@ -402,13 +434,15 @@ export function processSprintIssues(
   sprint: IssuePipelineSprintContext,
   members: IssueGroupMember[],
 ): DeveloperIssueGroup[] {
+  const developerMembers = getDeveloperMembers(members);
+
   if (!sprint.activatedAt && issues.length > 0) {
     console.warn(
       `[issue-pipeline] Sprint activation date missing for sprint '${sprint.sprintName}'. Falling back to plannedStart for planned/unplanned labeling.`,
     );
   }
 
-  const lookup = buildMemberLookup(members);
+  const lookup = buildMemberLookup(developerMembers);
 
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
@@ -449,7 +483,7 @@ export function processSprintIssues(
     groupedIssues.set(member.id, existingIssues);
   }
 
-  return members
+  return developerMembers
     .map<DeveloperIssueGroup | null>((member) => {
       const memberIssues = [...(groupedIssues.get(member.id) ?? [])].sort(
         (left, right) =>
@@ -479,7 +513,8 @@ export function processExternalInProgressIssues(
   sprint: IssuePipelineSprintContext,
   members: IssueGroupMember[],
 ): Map<string, ProcessedIssue[]> {
-  const lookup = buildMemberLookup(members);
+  const developerMembers = getDeveloperMembers(members);
+  const lookup = buildMemberLookup(developerMembers);
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
   for (const issue of issues) {

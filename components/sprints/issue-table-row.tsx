@@ -12,6 +12,10 @@ interface IssueTableRowProps {
 function getStatusBadgeClassName(status: string): string {
   const normalizedStatus = status.trim().toLowerCase();
 
+  if (normalizedStatus.includes('not created')) {
+    return 'border-slate-400/40 bg-slate-500/15 text-slate-200 ring-1 ring-inset ring-slate-500/35';
+  }
+
   if (
     normalizedStatus.includes('block')
     || normalizedStatus.includes('stuck')
@@ -93,7 +97,8 @@ export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowPr
     : issue.label === 'unplanned'
       ? 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/40'
       : undefined;
-  const statusBadgeClassName = getStatusBadgeClassName(issue.status);
+  const statusAtSprintStartBadgeClassName = getStatusBadgeClassName(issue.statusAtSprintStart);
+  const statusAtSprintEndBadgeClassName = getStatusBadgeClassName(issue.statusAtSprintEnd);
   const priorityBadgeClassName = issue.priority ? getPriorityBadgeClassName(issue.priority) : null;
 
   return (
@@ -120,7 +125,16 @@ export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowPr
         ) : '—'}
       </TableCell>
       <TableCell>
-        <Badge className={statusBadgeClassName} variant="outline">{issue.status}</Badge>
+        <div className="flex min-w-[180px] flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Begin</span>
+            <Badge className={statusAtSprintStartBadgeClassName} variant="outline">{issue.statusAtSprintStart}</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">End</span>
+            <Badge className={statusAtSprintEndBadgeClassName} variant="outline">{issue.statusAtSprintEnd}</Badge>
+          </div>
+        </div>
       </TableCell>
     </TableRow>
   );

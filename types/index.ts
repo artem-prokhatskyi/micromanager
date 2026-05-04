@@ -345,6 +345,8 @@ export interface ProcessedIssue {
   label: 'planned' | 'unplanned' | 'external';
   storyPoints: number | null;
   status: string;
+  statusAtSprintStart: string;
+  statusAtSprintEnd: string;
   priority: JiraIssuePriority['name'] | null;
   assigneeEmail: string;
 }

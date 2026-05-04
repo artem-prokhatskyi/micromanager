@@ -42,6 +42,8 @@ function isProcessedIssue(value: unknown): boolean {
     && typeof value.url === 'string'
     && typeof value.label === 'string'
     && typeof value.status === 'string'
+    && typeof value.statusAtSprintStart === 'string'
+    && typeof value.statusAtSprintEnd === 'string'
     && typeof value.assigneeEmail === 'string';
 }
 

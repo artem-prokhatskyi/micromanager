@@ -53,7 +53,7 @@ function IssueGroupTable({ issues, showStoryPoints = true, title }: { issues: Pr
             <TableHead>Title</TableHead>
             {showStoryPoints ? <TableHead>SP</TableHead> : null}
             <TableHead>Priority</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>Sprint status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
