@@ -136,3 +136,41 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: TeamRouteProps,
+): Promise<NextResponse<ApiResponse<{ deleted: true }>>> {
+  try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
+    const { teamId } = await params;
+    const existingTeam = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!existingTeam) {
+      return NextResponse.json(
+        { error: { message: 'Team not found.' } },
+        { status: 404 },
+      );
+    }
+
+    await prisma.team.delete({
+      where: {
+        id: teamId,
+      },
+    });
+
+    return NextResponse.json({ data: { deleted: true } });
+  } catch (error) {
+    console.error('[API /teams/:teamId DELETE]', error);
+
+    return NextResponse.json(
+      { error: { message: 'Failed to delete team.' } },
+      { status: 500 },
+    );
+  }
+}

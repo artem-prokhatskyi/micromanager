@@ -5,6 +5,17 @@ import { useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,6 +69,7 @@ export function CreateTeamForm({ initialValues, mode = 'create' }: CreateTeamFor
   const [errors, setErrors] = useState<TeamValidationErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -105,6 +117,40 @@ export function CreateTeamForm({ initialValues, mode = 'create' }: CreateTeamFor
       setSubmitError(mode === 'create' ? 'Failed to create team.' : 'Failed to update team.');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDelete(): Promise<void> {
+    if (!initialValues?.id) {
+      return;
+    }
+
+    setSubmitError(null);
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/teams/${initialValues.id}`, {
+        method: 'DELETE',
+      });
+      const payload: unknown = await response.json();
+
+      if (response.ok) {
+        toast({ title: `Deleted team ${initialValues.name}` });
+        router.push('/');
+        router.refresh();
+        return;
+      }
+
+      if (isApiError(payload)) {
+        setSubmitError(payload.error.message);
+        return;
+      }
+
+      setSubmitError('Failed to delete team.');
+    } catch {
+      setSubmitError('Failed to delete team.');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -178,8 +224,33 @@ export function CreateTeamForm({ initialValues, mode = 'create' }: CreateTeamFor
             <span>Estimate in hours</span>
           </label>
 
-          <div className="flex justify-end">
-            <Button disabled={isSaving} type="submit">
+          <div className="flex items-center justify-between gap-3">
+            {mode === 'edit' ? (
+              <AlertDialog>
+                <AlertDialogTrigger
+                  className="inline-flex h-10 items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:pointer-events-none disabled:opacity-50"
+                  disabled={isDeleting || isSaving}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete team'}
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this team?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently remove the team, its members, sprints, calendar data, and related assignments.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction disabled={isDeleting} onClick={() => void handleDelete()}>
+                      Delete team
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : <div />}
+
+            <Button disabled={isSaving || isDeleting} type="submit">
               {isSaving ? (mode === 'create' ? 'Creating...' : 'Saving...') : mode === 'create' ? 'Create team' : 'Save changes'}
             </Button>
           </div>
