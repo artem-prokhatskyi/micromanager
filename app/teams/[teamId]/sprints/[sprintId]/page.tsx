@@ -33,7 +33,7 @@ export default async function SprintDashboardPage({ params }: SprintDashboardPag
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">{dashboardData.team.name}</p>
       </div>
       <SprintCapacityTable
-        members={dashboardData.members}
+        members={dashboardData.members.filter((member) => !member.specialization.includes('qa'))}
         sprint={{
           id: dashboardData.sprint.id,
           name: dashboardData.sprint.name,

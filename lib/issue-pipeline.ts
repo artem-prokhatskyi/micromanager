@@ -24,6 +24,8 @@ interface MemberLookup {
   uniqueMembersByName: Map<string, IssueGroupMember>;
 }
 
+const QA_OWNER_FIELD_ID = 'customfield_11325';
+
 const PRIORITY_ORDER: Record<string, number> = {
   'David Jackson': 0,
   Critical: 1,
@@ -123,6 +125,75 @@ function getLastAssigneeIdentifier(issue: JiraIssue, histories: JiraIssueHistory
   }
 
   return currentAssigneeEmail ?? currentAssigneeName;
+}
+
+function normalizeIdentifiers(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.map((value) => normalizeAssigneeIdentifier(value)).filter((value): value is string => value !== null))];
+}
+
+function parseUserFieldIdentifiers(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => parseUserFieldIdentifiers(entry));
+  }
+
+  if (typeof value === 'string') {
+    return normalizeIdentifiers(value.split(','));
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+
+    return normalizeIdentifiers([
+      typeof record.emailAddress === 'string' ? record.emailAddress : null,
+      typeof record.displayName === 'string' ? record.displayName : null,
+      typeof record.name === 'string' ? record.name : null,
+      typeof record.value === 'string' ? record.value : null,
+    ]);
+  }
+
+  return [];
+}
+
+function getLastQaIdentifiers(issue: JiraIssue, histories: JiraIssueHistory[]): string[] {
+  for (const history of [...histories].reverse()) {
+    const qaItem = [...history.items].reverse().find(
+      (item) => item.fieldId === QA_OWNER_FIELD_ID || item.field === QA_OWNER_FIELD_ID,
+    );
+
+    if (!qaItem) {
+      continue;
+    }
+
+    const identifiers = parseUserFieldIdentifiers(qaItem.toString);
+
+    if (identifiers.length > 0) {
+      return identifiers;
+    }
+  }
+
+  return parseUserFieldIdentifiers(issue.fields[QA_OWNER_FIELD_ID]);
+}
+
+function findQaMembersForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssueGroupMember[] {
+  const identifiers = new Set<string>([
+    ...getLastQaIdentifiers(issue, histories),
+    ...normalizeIdentifiers([getLastAssigneeIdentifier(issue, histories)]),
+  ]);
+  const members = new Map<string, IssueGroupMember>();
+
+  for (const identifier of identifiers) {
+    const member = lookup.membersByEmail.get(identifier) ?? lookup.uniqueMembersByName.get(identifier);
+
+    if (member) {
+      members.set(member.id, member);
+    }
+  }
+
+  return [...members.values()];
 }
 
 function normalizeStoryPoints(value: number | null, estimateInHours: boolean): number | null {
@@ -226,6 +297,17 @@ function isInProgressStatus(status: string): boolean {
   );
 }
 
+function isQaTestingStatus(status: string): boolean {
+  const normalizedStatus = status.trim().toLowerCase();
+
+  return (
+    normalizedStatus.includes('testing')
+    || normalizedStatus.includes('qa')
+    || normalizedStatus.includes('verify')
+    || normalizedStatus.includes('validation')
+  );
+}
+
 function fallsWithinSprintWindow(date: Date, sprint: IssuePipelineSprintContext): boolean {
   const sprintStart = startOfUtcDay(sprint.activatedAt ?? sprint.plannedStart).getTime();
   const sprintEnd = startOfUtcDay(sprint.actualEnd ?? new Date()).getTime();
@@ -249,10 +331,11 @@ function parseIssueCreatedAt(issue: JiraIssue): Date | null {
   return Number.isNaN(createdAt.getTime()) ? null : createdAt;
 }
 
-function hadInProgressStatusDuringSprint(
+function hadMatchingStatusDuringSprint(
   issue: JiraIssue,
   histories: JiraIssueHistory[],
   sprint: IssuePipelineSprintContext,
+  matcher: (status: string) => boolean,
 ): boolean {
   let currentStatus = issue.fields.status.name;
   let currentIntervalEnd = sprint.actualEnd ?? new Date();
@@ -266,7 +349,7 @@ function hadInProgressStatusDuringSprint(
 
     const changedAt = new Date(history.created);
 
-    if (!Number.isNaN(changedAt.getTime()) && isInProgressStatus(currentStatus) && intervalsOverlap(changedAt, currentIntervalEnd, sprint)) {
+    if (!Number.isNaN(changedAt.getTime()) && matcher(currentStatus) && intervalsOverlap(changedAt, currentIntervalEnd, sprint)) {
       return true;
     }
 
@@ -280,7 +363,7 @@ function hadInProgressStatusDuringSprint(
     return false;
   }
 
-  return isInProgressStatus(currentStatus) && intervalsOverlap(issueCreatedAt, currentIntervalEnd, sprint);
+  return matcher(currentStatus) && intervalsOverlap(issueCreatedAt, currentIntervalEnd, sprint);
 }
 
 function toProcessedIssue(
@@ -407,7 +490,7 @@ export function processExternalInProgressIssues(
     const filteredHistories = sortHistoriesAscending(issue.changelog.histories);
     const member = findMemberForIssue(issue, filteredHistories, lookup);
 
-    if (!member || !hadInProgressStatusDuringSprint(issue, filteredHistories, sprint)) {
+    if (!member || !hadMatchingStatusDuringSprint(issue, filteredHistories, sprint, isInProgressStatus)) {
       continue;
     }
 
@@ -426,6 +509,132 @@ export function processExternalInProgressIssues(
     const existingIssues = groupedIssues.get(member.id) ?? [];
     existingIssues.push(processedIssue);
     groupedIssues.set(member.id, existingIssues);
+  }
+
+  for (const [memberId, memberIssues] of groupedIssues.entries()) {
+    groupedIssues.set(
+      memberId,
+      [...memberIssues].sort(
+        (left, right) =>
+          (PRIORITY_ORDER[left.priority ?? ''] ?? 99)
+          - (PRIORITY_ORDER[right.priority ?? ''] ?? 99),
+      ),
+    );
+  }
+
+  return groupedIssues;
+}
+
+export function processQaSprintIssues(
+  issues: JiraIssue[],
+  sprint: IssuePipelineSprintContext,
+  members: IssueGroupMember[],
+): DeveloperIssueGroup[] {
+  const qaMembers = members.filter((member) => member.specialization.includes('qa'));
+
+  if (qaMembers.length === 0) {
+    return [];
+  }
+
+  const lookup = buildMemberLookup(qaMembers);
+  const groupedIssues = new Map<string, ProcessedIssue[]>();
+
+  for (const issue of issues) {
+    const filteredHistories = sortHistoriesAscending(
+      filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
+    );
+    const matchedMembers = findQaMembersForIssue(issue, filteredHistories, lookup);
+
+    if (matchedMembers.length === 0) {
+      continue;
+    }
+
+    for (const member of matchedMembers) {
+      const processedIssue = toProcessedIssue(
+        issue,
+        sprint,
+        member.jiraEmail,
+        getIssueLabel(
+          filteredHistories,
+          sprint.activatedAt,
+          sprint.plannedStart,
+          sprint.sprintJiraId,
+          sprint.sprintName,
+        ),
+        filteredHistories,
+      );
+
+      if (!processedIssue) {
+        continue;
+      }
+
+      const existingIssues = groupedIssues.get(member.id) ?? [];
+      existingIssues.push(processedIssue);
+      groupedIssues.set(member.id, existingIssues);
+    }
+  }
+
+  return qaMembers
+    .map<DeveloperIssueGroup | null>((member) => {
+      const memberIssues = [...(groupedIssues.get(member.id) ?? [])].sort(
+        (left, right) =>
+          (PRIORITY_ORDER[left.priority ?? ''] ?? 5)
+          - (PRIORITY_ORDER[right.priority ?? ''] ?? 5),
+      );
+
+      if (memberIssues.length === 0) {
+        return null;
+      }
+
+      return {
+        member,
+        externalInProgressIssues: [],
+        issues: memberIssues,
+        totalStoryPoints: 0,
+      };
+    })
+    .filter((group): group is DeveloperIssueGroup => group !== null);
+}
+
+export function processQaExternalInProgressIssues(
+  issues: JiraIssue[],
+  sprint: IssuePipelineSprintContext,
+  members: IssueGroupMember[],
+): Map<string, ProcessedIssue[]> {
+  const qaMembers = members.filter((member) => member.specialization.includes('qa'));
+
+  if (qaMembers.length === 0) {
+    return new Map<string, ProcessedIssue[]>();
+  }
+
+  const lookup = buildMemberLookup(qaMembers);
+  const groupedIssues = new Map<string, ProcessedIssue[]>();
+
+  for (const issue of issues) {
+    const filteredHistories = sortHistoriesAscending(issue.changelog.histories);
+    const matchedMembers = findQaMembersForIssue(issue, filteredHistories, lookup);
+
+    if (matchedMembers.length === 0 || !hadMatchingStatusDuringSprint(issue, filteredHistories, sprint, isQaTestingStatus)) {
+      continue;
+    }
+
+    for (const member of matchedMembers) {
+      const processedIssue = toProcessedIssue(
+        issue,
+        sprint,
+        member.jiraEmail,
+        'external',
+        filteredHistories,
+      );
+
+      if (!processedIssue) {
+        continue;
+      }
+
+      const existingIssues = groupedIssues.get(member.id) ?? [];
+      existingIssues.push(processedIssue);
+      groupedIssues.set(member.id, existingIssues);
+    }
   }
 
   for (const [memberId, memberIssues] of groupedIssues.entries()) {

@@ -8,6 +8,7 @@ import type {
 
 const JIRA_API_BASE_PATH = '/rest/api/3';
 const JIRA_AGILE_BASE_PATH = '/rest/agile/1.0';
+const QA_OWNER_FIELD_ID = 'customfield_11325';
 
 const JIRA_ERROR_MESSAGES: Record<number, string> = {
   400: 'Jira rejected the request. Check the team Jira space and your Jira configuration.',
@@ -514,7 +515,7 @@ export async function getSprintByJiraId(jiraSprintId: number): Promise<JiraSprin
 
 export async function fetchSprintIssues(jiraSprintId: number): Promise<JiraIssue[]> {
   const { storyPointsFieldId } = await getJiraConfig();
-  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId].join(',');
+  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId, QA_OWNER_FIELD_ID].join(',');
   const pageSize = 200;
   const issues: JiraIssue[] = [];
   let startAt = 0;
@@ -562,19 +563,24 @@ function escapeJqlValue(value: string): string {
 export async function fetchAssignedIssuesOutsideProject(input: {
   assigneeEmail: string;
   excludedProjectKey: string;
+  includeQaField?: boolean;
   sprintEnd: Date;
   sprintStart: Date;
 }): Promise<JiraIssue[]> {
   const { storyPointsFieldId } = await getJiraConfig();
-  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId].join(',');
+  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId, QA_OWNER_FIELD_ID].join(',');
   const pageSize = 100;
   const issues: JiraIssue[] = [];
   if (input.sprintStart.getTime() > input.sprintEnd.getTime()) {
     return issues;
   }
 
+  const assignmentClause = input.includeQaField
+    ? `(assignee = \"${escapeJqlValue(input.assigneeEmail)}\" OR ${QA_OWNER_FIELD_ID} = \"${escapeJqlValue(input.assigneeEmail)}\")`
+    : `assignee = \"${escapeJqlValue(input.assigneeEmail)}\"`;
+
   const jql = [
-    `assignee = \"${escapeJqlValue(input.assigneeEmail)}\"`,
+    assignmentClause,
     `project != \"${escapeJqlValue(input.excludedProjectKey)}\"`,
     'status NOT IN (\"To Do\", \"NEW\", \"Closed\", \"ON HOLD\", \"Rejected\", \"Dev Review\", \"Duplicate\", \"Backlog\")',
   ].join(' AND ');

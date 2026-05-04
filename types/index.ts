@@ -358,6 +358,7 @@ export interface DeveloperIssueGroup {
 
 export interface SprintIssuesResponseData {
   groups: DeveloperIssueGroup[];
+  qaGroups: DeveloperIssueGroup[];
   cachedAt: string | null;
   isStale: boolean;
 }

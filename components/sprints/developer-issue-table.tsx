@@ -14,6 +14,8 @@ import type { DeveloperIssueGroup, MemberCapacityData, ProcessedIssue } from '@/
 interface DeveloperIssueTableProps {
   group: DeveloperIssueGroup;
   member: MemberCapacityData;
+  showCapacitySummary?: boolean;
+  showStoryPoints?: boolean;
 }
 
 function formatAbsenceSummary(member: MemberCapacityData): string {
@@ -37,7 +39,7 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }): ReactElement {
   );
 }
 
-function IssueGroupTable({ issues, title }: { issues: ProcessedIssue[]; title: string }): ReactElement {
+function IssueGroupTable({ issues, showStoryPoints = true, title }: { issues: ProcessedIssue[]; showStoryPoints?: boolean; title: string }): ReactElement {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -49,14 +51,14 @@ function IssueGroupTable({ issues, title }: { issues: ProcessedIssue[]; title: s
           <TableRow>
             <TableHead>Key</TableHead>
             <TableHead>Title</TableHead>
-            <TableHead>Story points</TableHead>
+            {showStoryPoints ? <TableHead>Story points</TableHead> : null}
             <TableHead>Priority</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {issues.map((issue) => (
-            <IssueTableRow issue={issue} key={issue.key} />
+            <IssueTableRow issue={issue} key={issue.key} showStoryPoints={showStoryPoints} />
           ))}
         </TableBody>
       </Table>
@@ -68,7 +70,7 @@ function formatSpecializationLabels(values: DeveloperIssueGroup['member']['speci
   return values.map((value) => SPECIALIZATION_SHORT_LABELS[value]);
 }
 
-export function DeveloperIssueTable({ group, member }: DeveloperIssueTableProps): ReactElement {
+export function DeveloperIssueTable({ group, member, showCapacitySummary = true, showStoryPoints = true }: DeveloperIssueTableProps): ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const externalInProgressIssues = group.externalInProgressIssues;
   const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
@@ -94,7 +96,7 @@ export function DeveloperIssueTable({ group, member }: DeveloperIssueTableProps)
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle>{group.member.name}</CardTitle>
                 {specializationLabels.map((specializationLabel) => (
-                  <Badge className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em]" variant="secondary">
+                  <Badge className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em]" key={specializationLabel} variant="secondary">
                     {specializationLabel}
                   </Badge>
                 ))}
@@ -102,17 +104,19 @@ export function DeveloperIssueTable({ group, member }: DeveloperIssueTableProps)
               <p className="text-sm text-muted-foreground">{group.issues.length} tickets</p>
             </div>
           </div>
-          <p className="text-sm font-medium text-foreground">
-            {group.totalStoryPoints} SP / {(member.actualCapacity ?? member.plannedCapacity).toFixed(1)} SP
-          </p>
+          {showCapacitySummary ? (
+            <p className="text-sm font-medium text-foreground">
+              {group.totalStoryPoints} SP / {(member.actualCapacity ?? member.plannedCapacity).toFixed(1)} SP
+            </p>
+          ) : null}
         </div>
         <p className="text-sm text-muted-foreground">{formatAbsenceSummary(member)}</p>
       </CardHeader>
       {collapsed ? null : (
         <CardContent className="space-y-6">
-          {plannedIssues.length > 0 ? <IssueGroupTable issues={plannedIssues} title="Planned issues" /> : null}
-          {unplannedIssues.length > 0 ? <IssueGroupTable issues={unplannedIssues} title="Unplanned issues" /> : null}
-          {externalInProgressIssues.length > 0 ? <IssueGroupTable issues={externalInProgressIssues} title="External in-progress issues" /> : null}
+          {plannedIssues.length > 0 ? <IssueGroupTable issues={plannedIssues} showStoryPoints={showStoryPoints} title="Planned issues" /> : null}
+          {unplannedIssues.length > 0 ? <IssueGroupTable issues={unplannedIssues} showStoryPoints={showStoryPoints} title="Unplanned issues" /> : null}
+          {externalInProgressIssues.length > 0 ? <IssueGroupTable issues={externalInProgressIssues} showStoryPoints={showStoryPoints} title="External in-progress issues" /> : null}
         </CardContent>
       )}
     </Card>

@@ -6,6 +6,7 @@ import type { ProcessedIssue } from '@/types';
 
 interface IssueTableRowProps {
   issue: ProcessedIssue;
+  showStoryPoints?: boolean;
 }
 
 function getStatusBadgeClassName(status: string): string {
@@ -86,7 +87,7 @@ function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priorit
   }
 }
 
-export function IssueTableRow({ issue }: IssueTableRowProps): ReactElement {
+export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowProps): ReactElement {
   const badgeClassName = issue.label === 'planned'
     ? undefined
     : issue.label === 'unplanned'
@@ -112,7 +113,7 @@ export function IssueTableRow({ issue }: IssueTableRowProps): ReactElement {
           )}
         </div>
       </TableCell>
-      <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell>
+      {showStoryPoints ? <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell> : null}
       <TableCell>
         {issue.priority ? (
           <Badge className={priorityBadgeClassName ?? undefined} variant="outline">{issue.priority}</Badge>

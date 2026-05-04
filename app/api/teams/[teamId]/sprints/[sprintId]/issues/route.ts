@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 
 import { fetchAssignedIssuesOutsideProject, fetchSprintIssues, JiraRequestError } from '@/lib/jira';
-import { processExternalInProgressIssues, processSprintIssues } from '@/lib/issue-pipeline';
+import {
+  processExternalInProgressIssues,
+  processQaExternalInProgressIssues,
+  processQaSprintIssues,
+  processSprintIssues,
+} from '@/lib/issue-pipeline';
 import { getSprintIssuesContext, upsertSprintIssueCache } from '@/lib/data/sprint';
-import type { ApiResponse, DeveloperIssueGroup, JiraIssue, SprintIssuesResponseData } from '@/types';
+import type { ApiResponse, DeveloperIssueGroup, JiraIssue, ProcessedIssue, SprintIssuesResponseData } from '@/types';
 
 interface SprintIssuesRouteProps {
   params: Promise<{
@@ -22,19 +27,19 @@ function toResponseData(input: {
   sprint: Parameters<typeof processSprintIssues>[1];
 }): SprintIssuesResponseData {
   const sprintGroups = processSprintIssues(input.issues, input.sprint, input.members);
+  const qaSprintGroups = processQaSprintIssues(input.issues, input.sprint, input.members);
   const externalIssues = input.externalIssues ?? [];
 
-  if (externalIssues.length > 0) {
-    const groupedExternalIssues = processExternalInProgressIssues(
-      externalIssues,
-      input.sprint,
-      input.members,
-    );
+  const mergeExternalIssues = (
+    groups: DeveloperIssueGroup[],
+    groupedExternalIssues: Map<string, ProcessedIssue[]>,
+    members: typeof input.members,
+  ): DeveloperIssueGroup[] => {
     const groupsByMemberId = new Map<string, DeveloperIssueGroup>(
-      sprintGroups.map((group) => [group.member.id, group]),
+      groups.map((group) => [group.member.id, group]),
     );
 
-    for (const member of input.members) {
+    for (const member of members) {
       const externalInProgressIssues = groupedExternalIssues.get(member.id) ?? [];
       const existingGroup = groupsByMemberId.get(member.id);
 
@@ -55,10 +60,27 @@ function toResponseData(input: {
       });
     }
 
+    return members
+      .map((member) => groupsByMemberId.get(member.id) ?? null)
+      .filter((group): group is DeveloperIssueGroup => group !== null);
+  };
+
+  if (externalIssues.length > 0) {
+    const groupedExternalIssues = processExternalInProgressIssues(
+      externalIssues,
+      input.sprint,
+      input.members,
+    );
+    const groupedQaExternalIssues = processQaExternalInProgressIssues(
+      externalIssues,
+      input.sprint,
+      input.members,
+    );
+    const qaMembers = input.members.filter((member) => member.specialization.includes('qa'));
+
     return {
-      groups: input.members
-        .map((member) => groupsByMemberId.get(member.id) ?? null)
-        .filter((group): group is DeveloperIssueGroup => group !== null),
+      groups: mergeExternalIssues(sprintGroups, groupedExternalIssues, input.members),
+      qaGroups: mergeExternalIssues(qaSprintGroups, groupedQaExternalIssues, qaMembers),
       cachedAt: input.cachedAt ? input.cachedAt.toISOString() : null,
       isStale: input.isStale,
     };
@@ -66,6 +88,7 @@ function toResponseData(input: {
 
   return {
     groups: sprintGroups,
+    qaGroups: qaSprintGroups,
     cachedAt: input.cachedAt ? input.cachedAt.toISOString() : null,
     isStale: input.isStale,
   };
@@ -86,6 +109,7 @@ async function fetchExternalIssues(
         issues: await fetchAssignedIssuesOutsideProject({
           assigneeEmail: member.jiraEmail,
           excludedProjectKey: input.teamJiraSpace,
+          includeQaField: member.specialization.includes('qa'),
           sprintEnd: input.sprint.actualEnd ?? new Date(),
           sprintStart: input.sprint.activatedAt ?? input.sprint.plannedStart,
         }),
@@ -104,7 +128,7 @@ async function fetchExternalIssues(
     throw error;
   }
 
-  return externalIssues.flatMap((entry) => entry.issues);
+  return [...new Map(externalIssues.flatMap((entry) => entry.issues).map((issue) => [issue.key, issue])).values()];
 }
 
 export async function GET(

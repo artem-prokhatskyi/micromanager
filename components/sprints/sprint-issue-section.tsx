@@ -31,7 +31,8 @@ function isIssueGroupMember(value: unknown): value is DeveloperIssueGroup['membe
   return isRecord(value)
     && typeof value.id === 'string'
     && typeof value.jiraEmail === 'string'
-    && typeof value.name === 'string';
+    && typeof value.name === 'string'
+    && Array.isArray(value.specialization);
 }
 
 function isProcessedIssue(value: unknown): boolean {
@@ -58,6 +59,8 @@ function isSprintIssuesResponseData(value: unknown): value is SprintIssuesRespon
   return isRecord(value)
     && Array.isArray(value.groups)
     && value.groups.every((group) => isDeveloperIssueGroup(group))
+    && Array.isArray(value.qaGroups)
+    && value.qaGroups.every((group) => isDeveloperIssueGroup(group))
     && (typeof value.cachedAt === 'string' || value.cachedAt === null)
     && typeof value.isStale === 'boolean';
 }
@@ -65,6 +68,7 @@ function isSprintIssuesResponseData(value: unknown): value is SprintIssuesRespon
 export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSectionProps): ReactElement {
   const [status, setStatus] = useState<IssueSectionStatus>('loading');
   const [groups, setGroups] = useState<DeveloperIssueGroup[]>([]);
+  const [qaGroups, setQaGroups] = useState<DeveloperIssueGroup[]>([]);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -76,13 +80,13 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
     [members],
   );
   const memberOptions = useMemo(
-    () => groups.map((group) => ({ id: group.member.id, name: group.member.name })),
-    [groups],
+    () => [...new Map([...groups, ...qaGroups].map((group) => [group.member.id, { id: group.member.id, name: group.member.name }])).values()],
+    [groups, qaGroups],
   );
   const specializationOptions = useMemo(
     () => SPECIALIZATIONS.filter((specialization) =>
-      groups.some((group) => group.member.specialization.includes(specialization))),
-    [groups],
+      [...groups, ...qaGroups].some((group) => group.member.specialization.includes(specialization))),
+    [groups, qaGroups],
   );
   const filteredGroups = useMemo(
     () => groups.filter((group) => {
@@ -97,6 +101,20 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
       return true;
     }),
     [groups, selectedMemberId, selectedSpecialization],
+  );
+  const filteredQaGroups = useMemo(
+    () => qaGroups.filter((group) => {
+      if (selectedMemberId !== 'all' && group.member.id !== selectedMemberId) {
+        return false;
+      }
+
+      if (selectedSpecialization !== 'all' && !group.member.specialization.includes(selectedSpecialization)) {
+        return false;
+      }
+
+      return true;
+    }),
+    [qaGroups, selectedMemberId, selectedSpecialization],
   );
 
   async function loadIssues(method: 'GET' | 'POST' = 'GET'): Promise<void> {
@@ -114,6 +132,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
 
       if (response.ok && isRecord(payload) && isSprintIssuesResponseData(payload.data)) {
         setGroups(payload.data.groups);
+        setQaGroups(payload.data.qaGroups);
         setCachedAt(payload.data.cachedAt);
         setErrorMessage(null);
         setStatus(payload.data.isStale ? 'stale' : 'success');
@@ -121,7 +140,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
       }
 
       if (isApiError(payload)) {
-        if (groups.length > 0) {
+        if (groups.length > 0 || qaGroups.length > 0) {
           setErrorMessage(payload.error.message);
           setStatus('stale');
           return;
@@ -132,7 +151,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
         return;
       }
 
-      if (groups.length > 0) {
+      if (groups.length > 0 || qaGroups.length > 0) {
         setErrorMessage('Failed to refresh sprint issues.');
         setStatus('stale');
         return;
@@ -141,7 +160,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
       setErrorMessage('Failed to load sprint issues.');
       setStatus('error');
     } catch {
-      if (groups.length > 0) {
+      if (groups.length > 0 || qaGroups.length > 0) {
         setErrorMessage('Failed to refresh sprint issues.');
         setStatus('stale');
         return;
@@ -221,7 +240,25 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
           })
         : null}
 
-      {status !== 'loading' && status !== 'error' && filteredGroups.length === 0 ? (
+      {status !== 'loading' && status !== 'error' && filteredQaGroups.length > 0 ? (
+        <div className="space-y-4 pt-4">
+          <div>
+            <h3 className="text-xl font-semibold tracking-tight text-foreground">QA Issues</h3>
+            <p className="text-sm text-muted-foreground">For members with QA specialization, matched by assignee and customfield_11325.</p>
+          </div>
+          {filteredQaGroups.map((group) => {
+            const member = membersById.get(group.member.id);
+
+            if (!member) {
+              return null;
+            }
+
+            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} showStoryPoints={false} />;
+          })}
+        </div>
+      ) : null}
+
+      {status !== 'loading' && status !== 'error' && filteredGroups.length === 0 && filteredQaGroups.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/80 bg-card/30 px-5 py-8 text-center">
           <p className="text-sm font-medium text-foreground">No issue tables match the current filters.</p>
           <p className="mt-1 text-sm text-muted-foreground">Adjust the person or specialization filter to see more results.</p>
