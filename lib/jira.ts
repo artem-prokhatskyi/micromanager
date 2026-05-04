@@ -515,7 +515,7 @@ export async function getSprintByJiraId(jiraSprintId: number): Promise<JiraSprin
 
 export async function fetchSprintIssues(jiraSprintId: number): Promise<JiraIssue[]> {
   const { storyPointsFieldId } = await getJiraConfig();
-  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId, QA_OWNER_FIELD_ID].join(',');
+  const fields = ['created', 'summary', 'assignee', 'priority', 'issuetype', 'status', storyPointsFieldId, QA_OWNER_FIELD_ID].join(',');
   const pageSize = 200;
   const issues: JiraIssue[] = [];
   let startAt = 0;
@@ -568,7 +568,7 @@ export async function fetchAssignedIssuesOutsideProject(input: {
   sprintStart: Date;
 }): Promise<JiraIssue[]> {
   const { storyPointsFieldId } = await getJiraConfig();
-  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId, QA_OWNER_FIELD_ID].join(',');
+  const fields = ['created', 'summary', 'assignee', 'priority', 'issuetype', 'status', storyPointsFieldId, QA_OWNER_FIELD_ID].join(',');
   const pageSize = 100;
   const issues: JiraIssue[] = [];
   if (input.sprintStart.getTime() > input.sprintEnd.getTime()) {

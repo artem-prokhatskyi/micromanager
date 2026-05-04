@@ -108,7 +108,7 @@ export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowPr
           {issue.key}
         </a>
       </TableCell>
-      <TableCell>
+      <TableCell width={600}>
         <div className="flex flex-wrap items-center gap-2">
           <a className="font-medium text-foreground" href={issue.url} rel="noopener noreferrer" target="_blank">
             {issue.title}
@@ -118,6 +118,7 @@ export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowPr
           )}
         </div>
       </TableCell>
+      <TableCell className="text-foreground">{issue.issueType ?? '—'}</TableCell>
       {showStoryPoints ? <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell> : null}
       <TableCell>
         {issue.priority ? (

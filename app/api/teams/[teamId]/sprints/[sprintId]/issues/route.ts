@@ -17,6 +17,10 @@ interface SprintIssuesRouteProps {
   }>;
 }
 
+function hasIssueTypeInCache(issues: JiraIssue[]): boolean {
+  return issues.every((issue) => 'issuetype' in issue.fields);
+}
+
 function toResponseData(input: {
   cachedAt: Date | null;
   externalIssues?: JiraIssue[];
@@ -143,7 +147,11 @@ export async function GET(
       return NextResponse.json({ error: { message: 'Sprint not found.' } }, { status: 404 });
     }
 
-    if (context.cache) {
+    if (
+      context.cache
+      && hasIssueTypeInCache(context.cache.sprintIssues)
+      && hasIssueTypeInCache(context.cache.externalIssues)
+    ) {
       const responseData = toResponseData({
         cachedAt: context.cache.fetchedAt,
         externalIssues: context.cache.externalIssues,

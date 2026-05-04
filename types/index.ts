@@ -150,6 +150,9 @@ export interface JiraIssueFields {
   summary: string;
   assignee: JiraIssueAssignee | null;
   priority: JiraIssuePriority | null;
+  issuetype?: {
+    name: string;
+  } | null;
   status: {
     name: string;
   };
@@ -342,6 +345,7 @@ export interface ProcessedIssue {
   key: string;
   title: string;
   url: string;
+  issueType: string | null;
   label: 'planned' | 'unplanned' | 'external';
   storyPoints: number | null;
   status: string;

@@ -40,6 +40,7 @@ function isProcessedIssue(value: unknown): boolean {
     && typeof value.key === 'string'
     && typeof value.title === 'string'
     && typeof value.url === 'string'
+    && (typeof value.issueType === 'string' || value.issueType === null)
     && typeof value.label === 'string'
     && typeof value.status === 'string'
     && typeof value.statusAtSprintStart === 'string'

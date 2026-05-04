@@ -411,6 +411,7 @@ function toProcessedIssue(
     key: issue.key,
     title: issue.fields.summary,
     url: `https://${sprint.jiraDomain}/browse/${issue.key}`,
+    issueType: issue.fields.issuetype?.name ?? null,
     label: label === 'external'
       ? 'external'
       : getIssueLabel(
