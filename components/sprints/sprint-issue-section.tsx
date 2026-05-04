@@ -7,7 +7,9 @@ import { DeveloperIssueTable } from '@/components/sprints/developer-issue-table'
 import { IssueSkeleton } from '@/components/sprints/issue-skeleton';
 import { JiraErrorBanner } from '@/components/sprints/jira-error-banner';
 import { RefreshButton } from '@/components/sprints/refresh-button';
-import type { ApiError, DeveloperIssueGroup, MemberCapacityData, SprintIssuesResponseData } from '@/types';
+import { Select } from '@/components/ui/select';
+import { SPECIALIZATION_LABELS, SPECIALIZATIONS } from '@/types';
+import type { ApiError, DeveloperIssueGroup, MemberCapacityData, Specialization, SprintIssuesResponseData } from '@/types';
 
 interface SprintIssueSectionProps {
   members: MemberCapacityData[];
@@ -66,10 +68,35 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('all');
+  const [selectedSpecialization, setSelectedSpecialization] = useState<Specialization | 'all'>('all');
 
   const membersById = useMemo(
     () => new Map<string, MemberCapacityData>(members.map((member) => [member.memberId, member])),
     [members],
+  );
+  const memberOptions = useMemo(
+    () => groups.map((group) => ({ id: group.member.id, name: group.member.name })),
+    [groups],
+  );
+  const specializationOptions = useMemo(
+    () => SPECIALIZATIONS.filter((specialization) =>
+      groups.some((group) => group.member.specialization.includes(specialization))),
+    [groups],
+  );
+  const filteredGroups = useMemo(
+    () => groups.filter((group) => {
+      if (selectedMemberId !== 'all' && group.member.id !== selectedMemberId) {
+        return false;
+      }
+
+      if (selectedSpecialization !== 'all' && !group.member.specialization.includes(selectedSpecialization)) {
+        return false;
+      }
+
+      return true;
+    }),
+    [groups, selectedMemberId, selectedSpecialization],
   );
 
   async function loadIssues(method: 'GET' | 'POST' = 'GET'): Promise<void> {
@@ -145,12 +172,45 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
         />
       </div>
 
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border/70 bg-card/50 p-4">
+        <div className="min-w-[220px] flex-1 space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground" htmlFor="issue-filter-person">
+            Person
+          </label>
+          <Select id="issue-filter-person" onChange={(event) => setSelectedMemberId(event.target.value)} value={selectedMemberId}>
+            <option value="all">All people</option>
+            {memberOptions.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="min-w-[220px] flex-1 space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground" htmlFor="issue-filter-specialization">
+            Specialization
+          </label>
+          <Select
+            id="issue-filter-specialization"
+            onChange={(event) => setSelectedSpecialization(event.target.value as Specialization | 'all')}
+            value={selectedSpecialization}
+          >
+            <option value="all">All specializations</option>
+            {specializationOptions.map((specialization) => (
+              <option key={specialization} value={specialization}>
+                {SPECIALIZATION_LABELS[specialization]}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
       {status === 'loading' ? <IssueSkeleton /> : null}
       {status === 'stale' ? <JiraErrorBanner cachedAt={cachedAt} message={errorMessage ?? undefined} onRetry={() => void loadIssues('POST')} type="stale" /> : null}
       {status === 'error' ? <JiraErrorBanner message={errorMessage ?? undefined} onRetry={() => void loadIssues('POST')} type="error" /> : null}
 
       {status !== 'loading' && status !== 'error'
-        ? groups.map((group) => {
+        ? filteredGroups.map((group) => {
             const member = membersById.get(group.member.id);
 
             if (!member) {
@@ -160,6 +220,13 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
             return <DeveloperIssueTable group={group} key={group.member.id} member={member} />;
           })
         : null}
+
+      {status !== 'loading' && status !== 'error' && filteredGroups.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border/80 bg-card/30 px-5 py-8 text-center">
+          <p className="text-sm font-medium text-foreground">No issue tables match the current filters.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Adjust the person or specialization filter to see more results.</p>
+        </div>
+      ) : null}
     </section>
   );
 }
