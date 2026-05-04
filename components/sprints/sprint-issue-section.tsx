@@ -7,7 +7,7 @@ import { DeveloperIssueTable } from '@/components/sprints/developer-issue-table'
 import { IssueSkeleton } from '@/components/sprints/issue-skeleton';
 import { JiraErrorBanner } from '@/components/sprints/jira-error-banner';
 import { RefreshButton } from '@/components/sprints/refresh-button';
-import { Select } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { SPECIALIZATION_LABELS, SPECIALIZATIONS } from '@/types';
 import type { ApiError, DeveloperIssueGroup, MemberCapacityData, Specialization, SprintIssuesResponseData } from '@/types';
 
@@ -68,6 +68,20 @@ function isSprintIssuesResponseData(value: unknown): value is SprintIssuesRespon
     && typeof value.isStale === 'boolean';
 }
 
+function toggleSelection<T extends string>(current: T[], value: T): T[] {
+  return current.includes(value)
+    ? current.filter((entry) => entry !== value)
+    : [...current, value];
+}
+
+function formatFilterSummary(label: string, selectedCount: number, totalCount: number): string {
+  if (selectedCount === 0) {
+    return `${label}: all`;
+  }
+
+  return `${label}: ${selectedCount}/${totalCount}`;
+}
+
 export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSectionProps): ReactElement {
   const [status, setStatus] = useState<IssueSectionStatus>('loading');
   const [groups, setGroups] = useState<DeveloperIssueGroup[]>([]);
@@ -75,8 +89,9 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('all');
-  const [selectedSpecialization, setSelectedSpecialization] = useState<Specialization | 'all'>('all');
+  const [areFiltersExpanded, setAreFiltersExpanded] = useState<boolean>(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [selectedSpecializations, setSelectedSpecializations] = useState<Specialization[]>([]);
 
   const membersById = useMemo(
     () => new Map<string, MemberCapacityData>(members.map((member) => [member.memberId, member])),
@@ -93,31 +108,44 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
   );
   const filteredGroups = useMemo(
     () => groups.filter((group) => {
-      if (selectedMemberId !== 'all' && group.member.id !== selectedMemberId) {
+      if (selectedMemberIds.length > 0 && !selectedMemberIds.includes(group.member.id)) {
         return false;
       }
 
-      if (selectedSpecialization !== 'all' && !group.member.specialization.includes(selectedSpecialization)) {
+      if (
+        selectedSpecializations.length > 0
+        && !selectedSpecializations.some((specialization) => group.member.specialization.includes(specialization))
+      ) {
         return false;
       }
 
       return true;
     }),
-    [groups, selectedMemberId, selectedSpecialization],
+    [groups, selectedMemberIds, selectedSpecializations],
   );
   const filteredQaGroups = useMemo(
     () => qaGroups.filter((group) => {
-      if (selectedMemberId !== 'all' && group.member.id !== selectedMemberId) {
+      if (selectedMemberIds.length > 0 && !selectedMemberIds.includes(group.member.id)) {
         return false;
       }
 
-      if (selectedSpecialization !== 'all' && !group.member.specialization.includes(selectedSpecialization)) {
+      if (
+        selectedSpecializations.length > 0
+        && !selectedSpecializations.some((specialization) => group.member.specialization.includes(specialization))
+      ) {
         return false;
       }
 
       return true;
     }),
-    [qaGroups, selectedMemberId, selectedSpecialization],
+    [qaGroups, selectedMemberIds, selectedSpecializations],
+  );
+  const filtersSummary = useMemo(
+    () => [
+      formatFilterSummary('People', selectedMemberIds.length, memberOptions.length),
+      formatFilterSummary('Specializations', selectedSpecializations.length, specializationOptions.length),
+    ].join(' · '),
+    [memberOptions.length, selectedMemberIds.length, selectedSpecializations.length, specializationOptions.length],
   );
 
   async function loadIssues(method: 'GET' | 'POST' = 'GET'): Promise<void> {
@@ -194,37 +222,74 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
         />
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border/70 bg-card/50 p-4">
-        <div className="min-w-[220px] flex-1 space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground" htmlFor="issue-filter-person">
-            Person
-          </label>
-          <Select id="issue-filter-person" onChange={(event) => setSelectedMemberId(event.target.value)} value={selectedMemberId}>
-            <option value="all">All people</option>
-            {memberOptions.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="min-w-[220px] flex-1 space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground" htmlFor="issue-filter-specialization">
-            Specialization
-          </label>
-          <Select
-            id="issue-filter-specialization"
-            onChange={(event) => setSelectedSpecialization(event.target.value as Specialization | 'all')}
-            value={selectedSpecialization}
-          >
-            <option value="all">All specializations</option>
-            {specializationOptions.map((specialization) => (
-              <option key={specialization} value={specialization}>
-                {SPECIALIZATION_LABELS[specialization]}
-              </option>
-            ))}
-          </Select>
-        </div>
+      <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
+        <button
+          aria-expanded={areFiltersExpanded}
+          className="flex w-full items-center justify-between gap-3 text-left"
+          onClick={() => setAreFiltersExpanded((current) => !current)}
+          type="button"
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Filters</p>
+            <p className="text-sm text-muted-foreground">{filtersSummary}</p>
+          </div>
+          <span className="text-sm font-medium text-foreground">{areFiltersExpanded ? 'Hide filters' : 'Show filters'}</span>
+        </button>
+
+        {areFiltersExpanded ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-3">
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Person
+              </label>
+              <div className="space-y-2 rounded-xl border border-border/70 bg-background/60 p-3">
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <Checkbox
+                    checked={selectedMemberIds.length === 0}
+                    onChange={() => setSelectedMemberIds([])}
+                  />
+                  <span>All people</span>
+                </label>
+                <div className="grid max-h-48 gap-2 overflow-y-auto pr-1">
+                  {memberOptions.map((member) => (
+                    <label className="flex items-center gap-2 text-sm text-foreground" key={member.id}>
+                      <Checkbox
+                        checked={selectedMemberIds.includes(member.id)}
+                        onChange={() => setSelectedMemberIds((current) => toggleSelection(current, member.id))}
+                      />
+                      <span>{member.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="min-w-0 space-y-3">
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Specialization
+              </label>
+              <div className="space-y-2 rounded-xl border border-border/70 bg-background/60 p-3">
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <Checkbox
+                    checked={selectedSpecializations.length === 0}
+                    onChange={() => setSelectedSpecializations([])}
+                  />
+                  <span>All specializations</span>
+                </label>
+                <div className="grid gap-2">
+                  {specializationOptions.map((specialization) => (
+                    <label className="flex items-center gap-2 text-sm text-foreground" key={specialization}>
+                      <Checkbox
+                        checked={selectedSpecializations.includes(specialization)}
+                        onChange={() => setSelectedSpecializations((current) => toggleSelection(current, specialization))}
+                      />
+                      <span>{SPECIALIZATION_LABELS[specialization]}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {status === 'loading' ? <IssueSkeleton /> : null}
@@ -264,7 +329,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
       {status !== 'loading' && status !== 'error' && filteredGroups.length === 0 && filteredQaGroups.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/80 bg-card/30 px-5 py-8 text-center">
           <p className="text-sm font-medium text-foreground">No issue tables match the current filters.</p>
-          <p className="mt-1 text-sm text-muted-foreground">Adjust the person or specialization filter to see more results.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Adjust the selected people or specializations to see more results.</p>
         </div>
       ) : null}
     </section>
