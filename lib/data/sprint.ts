@@ -10,6 +10,7 @@ import {
   summarizeAbsencesByType,
   workingDaysInRange,
 } from '@/lib/capacity';
+import { buildAccessibleTeamWhere, getCurrentUserOrNull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getTeamDetail, getTeamMembers } from '@/lib/data/team';
 import type {
@@ -26,6 +27,16 @@ import type {
 interface CachedSprintIssuesPayload {
   externalIssues: JiraIssue[];
   sprintIssues: JiraIssue[];
+}
+
+async function getAccessibleTeamWhere(): Promise<Prisma.TeamWhereInput | null> {
+  const currentUser = await getCurrentUserOrNull();
+
+  if (!currentUser) {
+    return null;
+  }
+
+  return buildAccessibleTeamWhere(currentUser);
 }
 
 function toSprintListItem(sprint: SprintRecord): SprintListItem {
@@ -94,8 +105,15 @@ function toPrismaJsonValue(value: CachedSprintIssuesPayload): Prisma.InputJsonVa
 export async function getTeamSprints(teamId: string): Promise<SprintListItem[]> {
   noStore();
 
+  const accessibleWhere = await getAccessibleTeamWhere();
+
+  if (!accessibleWhere) {
+    return [];
+  }
+
   const sprints = await prisma.sprint.findMany({
     where: {
+      team: accessibleWhere,
       teamId,
     },
     select: {
@@ -119,8 +137,15 @@ export async function getTeamSprints(teamId: string): Promise<SprintListItem[]> 
 export async function getLatestSprint(teamId: string): Promise<Pick<SprintRecord, 'id'> | null> {
   noStore();
 
+  const accessibleWhere = await getAccessibleTeamWhere();
+
+  if (!accessibleWhere) {
+    return null;
+  }
+
   return prisma.sprint.findFirst({
     where: {
+      team: accessibleWhere,
       teamId,
     },
     select: {
@@ -135,9 +160,16 @@ export async function getLatestSprint(teamId: string): Promise<Pick<SprintRecord
 export async function getSprintById(teamId: string, sprintId: string): Promise<SprintListItem | null> {
   noStore();
 
+  const accessibleWhere = await getAccessibleTeamWhere();
+
+  if (!accessibleWhere) {
+    return null;
+  }
+
   const sprint = await prisma.sprint.findFirst({
     where: {
       id: sprintId,
+      team: accessibleWhere,
       teamId,
     },
     select: {
@@ -158,8 +190,15 @@ export async function getSprintById(teamId: string, sprintId: string): Promise<S
 export async function getSprintSelectorOptions(teamId: string): Promise<SprintOption[]> {
   noStore();
 
+  const accessibleWhere = await getAccessibleTeamWhere();
+
+  if (!accessibleWhere) {
+    return [];
+  }
+
   return prisma.sprint.findMany({
     where: {
+      team: accessibleWhere,
       teamId,
     },
     select: {
@@ -318,10 +357,17 @@ export async function getSprintIssuesContext(
 ): Promise<SprintIssuesContext | null> {
   noStore();
 
+  const accessibleWhere = await getAccessibleTeamWhere();
+
+  if (!accessibleWhere) {
+    return null;
+  }
+
   const [sprint, team, members, settings] = await Promise.all([
     prisma.sprint.findFirst({
       where: {
         id: sprintId,
+        team: accessibleWhere,
         teamId,
       },
       select: {
@@ -341,8 +387,9 @@ export async function getSprintIssuesContext(
         },
       },
     }),
-    prisma.team.findUnique({
+    prisma.team.findFirst({
       where: {
+        ...accessibleWhere,
         id: teamId,
       },
       select: {

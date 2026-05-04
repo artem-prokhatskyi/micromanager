@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { z } from 'zod';
 
+import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import type { ApiResponse } from '@/types';
 
@@ -43,7 +44,19 @@ export async function PATCH(
   { params }: FocusFactorRouteProps,
 ): Promise<NextResponse<ApiResponse<SprintFocusFactorResponse>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { sprintId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
+    }
+
     const sprint = await prisma.sprint.findFirst({
       where: {
         id: sprintId,

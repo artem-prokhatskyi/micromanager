@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { z } from 'zod';
 
+import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { getTeamSprints } from '@/lib/data/sprint';
 import { findAvailableSprints, findSprintsByName, JiraRequestError, resolveJiraSprintDates } from '@/lib/jira';
 import { prisma } from '@/lib/prisma';
@@ -58,10 +59,16 @@ export async function GET(
   { params }: SprintsRouteProps,
 ): Promise<NextResponse<ApiResponse<SprintListItem[] | AvailableSprintOption[]>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { teamId } = await params;
-    const team = await prisma.team.findUnique({
+    const team = await prisma.team.findFirst({
       where: {
-        id: teamId,
+        ...((await getAccessibleTeamId(teamId, currentUser)) ? { id: teamId } : { id: '__missing__' }),
       },
       select: {
         id: true,
@@ -115,10 +122,16 @@ export async function POST(
   { params }: SprintsRouteProps,
 ): Promise<NextResponse<ApiResponse<SprintRecord | MultipleSprintMatches>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { teamId } = await params;
-    const team = await prisma.team.findUnique({
+    const team = await prisma.team.findFirst({
       where: {
-        id: teamId,
+        ...((await getAccessibleTeamId(teamId, currentUser)) ? { id: teamId } : { id: '__missing__' }),
       },
       select: {
         id: true,

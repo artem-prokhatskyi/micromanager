@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { fetchAssignedIssuesOutsideProject, fetchSprintIssues, JiraRequestError } from '@/lib/jira';
 import {
   processExternalInProgressIssues,
@@ -140,7 +141,19 @@ export async function GET(
   { params }: SprintIssuesRouteProps,
 ): Promise<NextResponse<ApiResponse<SprintIssuesResponseData>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { sprintId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
+    }
+
     const context = await getSprintIssuesContext(teamId, sprintId);
 
     if (!context) {
@@ -239,7 +252,19 @@ export async function POST(
   { params }: SprintIssuesRouteProps,
 ): Promise<NextResponse<ApiResponse<SprintIssuesResponseData>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { sprintId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
+    }
+
     const context = await getSprintIssuesContext(teamId, sprintId);
 
     if (!context) {

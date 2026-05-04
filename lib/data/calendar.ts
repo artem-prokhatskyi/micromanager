@@ -1,5 +1,6 @@
 import { unstable_noStore as noStore } from 'next/cache';
 
+import { buildAccessibleTeamWhere, getCurrentUserOrNull } from '@/lib/auth';
 import { formatUtcDate } from '@/lib/date';
 import { prisma } from '@/lib/prisma';
 import { getTeamDetail, getTeamMembers } from '@/lib/data/team';
@@ -13,12 +14,21 @@ export async function getTeamCalendarData(
 ): Promise<TeamCalendarData | null> {
   noStore();
 
+  const currentUser = await getCurrentUserOrNull();
+
+  if (!currentUser) {
+    return null;
+  }
+
+  const accessibleWhere = buildAccessibleTeamWhere(currentUser);
+
   const [team, members, sprints, nonWorkingDays] = await Promise.all([
     getTeamDetail(teamId),
     getTeamMembers(teamId),
     getTeamSprints(teamId),
     prisma.nonWorkingDay.findMany({
       where: {
+        team: accessibleWhere,
         teamId,
         date: {
           gte: range.start,

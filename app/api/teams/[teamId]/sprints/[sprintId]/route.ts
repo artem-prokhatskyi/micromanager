@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { getSprintById } from '@/lib/data/sprint';
 import { getSprintByJiraId, resolveJiraSprintDates } from '@/lib/jira';
 import { prisma } from '@/lib/prisma';
@@ -17,7 +18,19 @@ export async function GET(
   { params }: SprintRouteProps,
 ): Promise<NextResponse<ApiResponse<SprintListItem>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { sprintId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
+    }
+
     const sprint = await getSprintById(teamId, sprintId);
 
     if (!sprint) {
@@ -40,7 +53,19 @@ export async function PUT(
   { params }: SprintRouteProps,
 ): Promise<NextResponse<ApiResponse<SprintListItem>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { sprintId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
+    }
+
     const sprint = await prisma.sprint.findFirst({
       where: {
         id: sprintId,
@@ -94,7 +119,19 @@ export async function DELETE(
   { params }: SprintRouteProps,
 ): Promise<NextResponse<ApiResponse<{ deleted: true }>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { sprintId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
+    }
+
     const sprint = await prisma.sprint.findFirst({
       where: {
         id: sprintId,

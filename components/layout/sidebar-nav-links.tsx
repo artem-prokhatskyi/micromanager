@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 
 interface SidebarNavLinksProps {
   collapsed: boolean;
+  isAdmin: boolean;
 }
 
 interface NavItem {
@@ -55,7 +56,7 @@ function renderNavItem(collapsed: boolean, item: NavItem, pathname: string): Rea
   );
 }
 
-export function SidebarNavLinks({ collapsed }: SidebarNavLinksProps): ReactElement {
+export function SidebarNavLinks({ collapsed, isAdmin }: SidebarNavLinksProps): ReactElement {
   const pathname = usePathname();
 
   const navItems: NavItem[] = [
@@ -65,6 +66,16 @@ export function SidebarNavLinks({ collapsed }: SidebarNavLinksProps): ReactEleme
       label: 'Add team',
       title: 'Create a new team',
     },
+    ...(isAdmin
+      ? [
+          {
+            href: '/users',
+            icon: <LinkIcon path="M16 21V19C16 17.343 14.657 16 13 16H7C5.343 16 4 17.343 4 19V21M18 8C19.657 8 21 9.343 21 11C21 12.657 19.657 14 18 14C16.343 14 15 12.657 15 11C15 9.343 16.343 8 18 8ZM10 5C12.209 5 14 6.791 14 9C14 11.209 12.209 13 10 13C7.791 13 6 11.209 6 9C6 6.791 7.791 5 10 5Z" />,
+            label: 'Users',
+            title: 'Manage users and invites',
+          },
+        ]
+      : []),
   ];
 
   return <div className="space-y-1">{navItems.map((item) => renderNavItem(collapsed, item, pathname))}</div>;

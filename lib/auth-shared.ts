@@ -1,0 +1,1 @@
+export const PASSWORD_REQUIREMENTS_MESSAGE = 'Use at least 8 characters, including one number and one special character.';

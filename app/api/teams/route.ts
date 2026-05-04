@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { z } from 'zod';
 
+import { getCurrentUserOrNull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import type { ApiResponse } from '@/types';
 
@@ -26,6 +27,15 @@ function mapValidationErrors(error: z.ZodError): Record<string, string> {
 
 export async function POST(request: Request): Promise<NextResponse<ApiResponse<{ id: string; name: string }>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: { message: 'Authentication required.' } },
+        { status: 401 },
+      );
+    }
+
     const body = (await request.json()) as unknown;
     const result = createTeamSchema.safeParse(body);
 
@@ -44,10 +54,16 @@ export async function POST(request: Request): Promise<NextResponse<ApiResponse<{
 
     const team = await prisma.team.create({
       data: {
+        createdByUserId: currentUser.id,
         name: result.data.name.trim(),
         jiraSpace: result.data.jiraSpace.trim().toUpperCase(),
         githubRepositories: result.data.githubRepositories,
         estimateInHours: result.data.estimateInHours,
+        userAssignments: {
+          create: {
+            userId: currentUser.id,
+          },
+        },
       },
       select: {
         id: true,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { z } from 'zod';
 
+import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sortWorkingDays } from '@/lib/utils';
 import { SPECIALIZATION, WEEK_DAY } from '@/types';
@@ -73,7 +74,22 @@ export async function PUT(
   { params }: TeamMemberRouteProps,
 ): Promise<NextResponse<ApiResponse<TeamMemberRecord>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { memberId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json(
+        { error: { message: 'Team not found.' } },
+        { status: 404 },
+      );
+    }
+
     const memberRecord = await getTeamMemberRecord(teamId, memberId);
 
     if (!memberRecord) {
@@ -162,7 +178,22 @@ export async function DELETE(
   { params }: TeamMemberRouteProps,
 ): Promise<NextResponse<ApiResponse<{ deleted: true }>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { memberId, teamId } = await params;
+    const team = await getAccessibleTeamId(teamId, currentUser);
+
+    if (!team) {
+      return NextResponse.json(
+        { error: { message: 'Team not found.' } },
+        { status: 404 },
+      );
+    }
+
     const memberRecord = await getTeamMemberRecord(teamId, memberId);
 
     if (!memberRecord) {

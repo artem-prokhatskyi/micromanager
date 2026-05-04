@@ -8,12 +8,15 @@ import { useParams, usePathname } from 'next/navigation';
 import { SidebarNavLinks } from '@/components/layout/sidebar-nav-links';
 import { SidebarTeamList } from '@/components/layout/sidebar-team-list';
 import { SidebarToggle } from '@/components/layout/sidebar-toggle';
+import { UserSessionPanel } from '@/components/layout/user-session-panel';
 import { Separator } from '@/components/ui/separator';
 import type { ShellTeam } from '@/lib/data/team';
 import { cn } from '@/lib/utils';
+import type { AuthenticatedUserRecord } from '@/types';
 
 interface SidebarProps {
   collapsed: boolean;
+  currentUser: AuthenticatedUserRecord;
   onToggle: () => void;
   teams: ShellTeam[];
 }
@@ -31,7 +34,7 @@ function SettingsIcon(): ReactElement {
   );
 }
 
-export function Sidebar({ collapsed, onToggle, teams }: SidebarProps): ReactElement {
+export function Sidebar({ collapsed, currentUser, onToggle, teams }: SidebarProps): ReactElement {
   const pathname = usePathname();
   const params = useParams<{ teamId?: string }>();
   const activeTeamId = typeof params.teamId === 'string' ? params.teamId : null;
@@ -66,10 +69,14 @@ export function Sidebar({ collapsed, onToggle, teams }: SidebarProps): ReactElem
 
         <Separator />
 
-        <SidebarNavLinks collapsed={collapsed} />
+        <SidebarNavLinks collapsed={collapsed} isAdmin={currentUser.role === 'admin'} />
       </div>
 
       <div className="flex-1" />
+
+      <Separator className="my-4" />
+
+      <UserSessionPanel collapsed={collapsed} currentUser={currentUser} />
 
       <Separator className="my-4" />
 

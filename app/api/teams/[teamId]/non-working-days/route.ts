@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { z } from 'zod';
 
+import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { formatUtcDate, parseUtcDate } from '@/lib/date';
 import { prisma } from '@/lib/prisma';
 import { NON_WORKING_DAY_TYPE } from '@/types';
@@ -81,8 +82,14 @@ export async function GET(
   { params }: NonWorkingDaysRouteProps,
 ): Promise<NextResponse<ApiResponse<CalendarNonWorkingDayRecord[]>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { teamId } = await params;
-    const team = await getTeamRecord(teamId);
+    const team = await getAccessibleTeamId(teamId, currentUser);
 
     if (!team) {
       return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
@@ -171,8 +178,14 @@ export async function POST(
   { params }: NonWorkingDaysRouteProps,
 ): Promise<NextResponse<ApiResponse<CalendarNonWorkingDayRecord[]>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { teamId } = await params;
-    const team = await getTeamRecord(teamId);
+    const team = await getAccessibleTeamId(teamId, currentUser);
 
     if (!team) {
       return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });

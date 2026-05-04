@@ -3,18 +3,21 @@
 import type { ReactElement, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
+import { ForcedPasswordChangeDialog } from '@/components/auth/forced-password-change-dialog';
 import { Sidebar } from '@/components/layout/sidebar';
 import type { ShellTeam } from '@/lib/data/team';
 import { cn } from '@/lib/utils';
+import type { AuthenticatedUserRecord } from '@/types';
 
 const SIDEBAR_STORAGE_KEY = 'app-shell:sidebar-collapsed';
 
 interface AppShellProps {
   children: ReactNode;
+  currentUser: AuthenticatedUserRecord;
   teams: ShellTeam[];
 }
 
-export function AppShell({ children, teams }: AppShellProps): ReactElement {
+export function AppShell({ children, currentUser, teams }: AppShellProps): ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
 
@@ -38,10 +41,16 @@ export function AppShell({ children, teams }: AppShellProps): ReactElement {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((current) => !current)} teams={teams} />
+      <Sidebar
+        collapsed={collapsed}
+        currentUser={currentUser}
+        onToggle={() => setCollapsed((current) => !current)}
+        teams={teams}
+      />
       <main className={cn('flex-1 overflow-y-auto transition-all duration-200', collapsed ? 'px-6 py-6 md:px-8' : 'px-6 py-6 md:px-10')}>
         <div className="mx-auto min-h-[calc(100vh-3rem)] max-w-7xl">{children}</div>
       </main>
+      <ForcedPasswordChangeDialog open={currentUser.mustChangePassword} />
     </div>
   );
 }

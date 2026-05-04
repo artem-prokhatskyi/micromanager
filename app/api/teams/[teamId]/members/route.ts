@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { z } from 'zod';
 
+import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { getTeamMembers } from '@/lib/data/team';
 import { prisma } from '@/lib/prisma';
 import { sortWorkingDays } from '@/lib/utils';
@@ -60,15 +61,14 @@ export async function GET(
   { params }: TeamMembersRouteProps,
 ): Promise<NextResponse<ApiResponse<TeamMemberRecord[]>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { teamId } = await params;
-    const team = await prisma.team.findUnique({
-      where: {
-        id: teamId,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const team = await getAccessibleTeamId(teamId, currentUser);
 
     if (!team) {
       return NextResponse.json(
@@ -95,15 +95,14 @@ export async function POST(
   { params }: TeamMembersRouteProps,
 ): Promise<NextResponse<ApiResponse<TeamMemberRecord>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: { message: 'Authentication required.' } }, { status: 401 });
+    }
+
     const { teamId } = await params;
-    const team = await prisma.team.findUnique({
-      where: {
-        id: teamId,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const team = await getAccessibleTeamId(teamId, currentUser);
 
     if (!team) {
       return NextResponse.json(

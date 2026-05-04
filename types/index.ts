@@ -80,6 +80,47 @@ export interface ApiError {
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
+export const USER_ROLE = {
+  ADMIN: 'admin',
+  USER: 'user',
+} as const;
+
+export type UserRole = (typeof USER_ROLE)[keyof typeof USER_ROLE];
+
+export const USER_STATUS = {
+  ACTIVE: 'active',
+  DEACTIVATED: 'deactivated',
+  PENDING: 'pending',
+} as const;
+
+export type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
+
+export interface AuthenticatedUserRecord {
+  email: string;
+  id: string;
+  invitedByEmail: string | null;
+  mustChangePassword: boolean;
+  role: UserRole;
+  status: UserStatus;
+}
+
+export interface RegistrationPageState {
+  bootstrapRegistrationOpen: boolean;
+  invitedEmail: string | null;
+  inviteTokenValid: boolean;
+  requiresInvite: boolean;
+}
+
+export interface ManagedUserRecord {
+  assignedTeamIds: string[];
+  assignedTeams: TeamOption[];
+  email: string;
+  id: string;
+  invitedByEmail: string | null;
+  role: UserRole;
+  status: UserStatus;
+}
+
 export interface SettingsFormValues {
   jiraDomain: string;
   jiraEmail: string;

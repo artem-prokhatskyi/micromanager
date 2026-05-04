@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { encrypt } from '@/lib/encryption';
+import { getCurrentUserOrNull } from '@/lib/auth';
 import { validateJiraConnection } from '@/lib/jira';
 import { prisma } from '@/lib/prisma';
 import type { ApiResponse, SettingsResponseData } from '@/types';
@@ -39,6 +40,22 @@ function toResponse(data: SettingsResponseData): NextResponse<ApiResponse<Settin
 
 export async function GET(): Promise<NextResponse<ApiResponse<SettingsResponseData>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: { message: 'Authentication required.' } },
+        { status: 401 },
+      );
+    }
+
+    if (currentUser.role !== 'admin') {
+      return NextResponse.json(
+        { error: { message: 'Admin access is required.' } },
+        { status: 403 },
+      );
+    }
+
     const settings = await prisma.settings.findFirst({
       select: {
         jiraDomain: true,
@@ -70,6 +87,22 @@ export async function GET(): Promise<NextResponse<ApiResponse<SettingsResponseDa
 
 export async function POST(request: Request): Promise<NextResponse<ApiResponse<{ success: true }>>> {
   try {
+    const currentUser = await getCurrentUserOrNull();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: { message: 'Authentication required.' } },
+        { status: 401 },
+      );
+    }
+
+    if (currentUser.role !== 'admin') {
+      return NextResponse.json(
+        { error: { message: 'Admin access is required.' } },
+        { status: 403 },
+      );
+    }
+
     const body = (await request.json()) as unknown;
     const result = settingsSchema.safeParse(body);
 
