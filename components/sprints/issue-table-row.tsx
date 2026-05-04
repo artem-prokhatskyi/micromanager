@@ -89,13 +89,15 @@ function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priorit
 export function IssueTableRow({ issue }: IssueTableRowProps): ReactElement {
   const badgeClassName = issue.label === 'planned'
     ? undefined
-    : 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/40';
+    : issue.label === 'unplanned'
+      ? 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/40'
+      : undefined;
   const statusBadgeClassName = getStatusBadgeClassName(issue.status);
   const priorityBadgeClassName = issue.priority ? getPriorityBadgeClassName(issue.priority) : null;
 
   return (
     <TableRow>
-      <TableCell className="font-medium text-foreground">
+      <TableCell className="font-medium text-foreground text-nowrap">
         <a href={issue.url} rel="noopener noreferrer" target="_blank">
           {issue.key}
         </a>
@@ -105,7 +107,9 @@ export function IssueTableRow({ issue }: IssueTableRowProps): ReactElement {
           <a className="font-medium text-foreground" href={issue.url} rel="noopener noreferrer" target="_blank">
             {issue.title}
           </a>
-          <Badge className={badgeClassName} variant={issue.label === 'planned' ? 'secondary' : 'outline'}>{issue.label}</Badge>
+          {issue.label === 'external' ? null : (
+            <Badge className={badgeClassName} variant={issue.label === 'planned' ? 'secondary' : 'outline'}>{issue.label}</Badge>
+          )}
         </div>
       </TableCell>
       <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell>

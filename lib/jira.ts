@@ -1,5 +1,5 @@
-import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
+import { prisma } from '@/lib/prisma';
 import type {
   JiraConnectionResult,
   JiraIssue,
@@ -40,10 +40,20 @@ interface JiraSprintSearchResponse {
 
 interface JiraSprintResponse extends JiraSprintMetadata {}
 
-interface JiraIssueSearchResponse {
+interface JiraIssueSearchResult extends Pick<JiraIssue, 'key' | 'fields'> {}
+
+interface JiraAgileIssueSearchResponse {
   issues: JiraIssue[];
   maxResults?: number;
   startAt?: number;
+  total?: number;
+}
+
+interface JiraIssueSearchResponse {
+  isLast?: boolean;
+  issues: JiraIssueSearchResult[];
+  maxResults?: number;
+  nextPageToken?: string;
   total?: number;
 }
 
@@ -52,7 +62,7 @@ interface JiraRequestLogContext {
   durationMs?: number;
   errorMessage?: string;
   jiraDomain?: string;
-  method: 'GET';
+  method: 'GET' | 'POST';
   path: string;
   requestId: string;
   status?: number;
@@ -219,6 +229,116 @@ async function jiraFetch<T>(path: string, basePath: string = JIRA_API_BASE_PATH)
   }
 }
 
+async function jiraPost<T>(
+  path: string,
+  body: Record<string, unknown>,
+  basePath: string = JIRA_API_BASE_PATH,
+): Promise<T> {
+  const { jiraApiKey, jiraDomain, jiraEmail } = await getJiraConfig();
+  const credentials = Buffer.from(`${jiraEmail}:${jiraApiKey}`).toString('base64');
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+
+  logJiraRequest('jira_request_started', {
+    requestId,
+    method: 'POST',
+    jiraDomain,
+    basePath,
+    path,
+  });
+
+  try {
+    const response = await fetch(`https://${jiraDomain}${basePath}${path}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      const jiraErrorMessage = getDetailedJiraPostErrorMessage(response.status, responseText);
+
+      logJiraRequest('jira_request_failed', {
+        requestId,
+        method: 'POST',
+        jiraDomain,
+        basePath,
+        path,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        errorMessage: jiraErrorMessage,
+      });
+
+      throw new JiraRequestError(jiraErrorMessage, response.status);
+    }
+
+    logJiraRequest('jira_request_succeeded', {
+      requestId,
+      method: 'POST',
+      jiraDomain,
+      basePath,
+      path,
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+    });
+
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof JiraRequestError) {
+      throw error;
+    }
+
+    logJiraRequest('jira_request_failed', {
+      requestId,
+      method: 'POST',
+      jiraDomain,
+      basePath,
+      path,
+      durationMs: Date.now() - startedAt,
+      errorMessage: error instanceof Error ? error.message : 'Unknown Jira request failure.',
+    });
+
+    throw new JiraRequestError('Cannot reach Jira. Check your network connection.');
+  }
+}
+
+function getDetailedJiraPostErrorMessage(status: number, responseText: string): string {
+  const fallbackMessage = getJiraErrorMessage(status);
+
+  if (!responseText) {
+    return fallbackMessage;
+  }
+
+  try {
+    const parsedResponse = JSON.parse(responseText) as {
+      errorMessages?: string[];
+      errors?: Record<string, string>;
+      message?: string;
+    };
+
+    const detailedMessages = [
+      ...(parsedResponse.errorMessages ?? []),
+      ...Object.values(parsedResponse.errors ?? {}),
+      ...(parsedResponse.message ? [parsedResponse.message] : []),
+    ].filter(Boolean);
+
+    if (detailedMessages.length > 0) {
+      return detailedMessages.join(' | ');
+    }
+  } catch {
+    if (responseText.trim().length > 0) {
+      return responseText.trim();
+    }
+  }
+
+  return fallbackMessage;
+}
+
 function parseJiraDate(value?: string): Date | null {
   if (!value) {
     return null;
@@ -349,14 +469,14 @@ export async function getSprintByJiraId(jiraSprintId: number): Promise<JiraSprin
 
 export async function fetchSprintIssues(jiraSprintId: number): Promise<JiraIssue[]> {
   const { storyPointsFieldId } = await getJiraConfig();
-  const fields = ['summary', 'assignee', 'priority', 'status', storyPointsFieldId].join(',');
+  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId].join(',');
   const pageSize = 200;
   const issues: JiraIssue[] = [];
   let startAt = 0;
   let hasMoreResults = true;
 
   while (hasMoreResults) {
-    const issueResponse = await jiraFetch<JiraIssueSearchResponse>(
+    const issueResponse = await jiraFetch<JiraAgileIssueSearchResponse>(
       `/sprint/${jiraSprintId}/issue?expand=changelog&fields=${encodeURIComponent(fields)}&maxResults=${pageSize}&startAt=${startAt}`,
       JIRA_AGILE_BASE_PATH,
     );
@@ -379,6 +499,70 @@ export async function fetchSprintIssues(jiraSprintId: number): Promise<JiraIssue
     }
 
     startAt = nextStartAt;
+  }
+
+  return issues;
+}
+
+async function fetchIssueWithChangelog(issueKey: string, fields: string): Promise<JiraIssue> {
+  return jiraFetch<JiraIssue>(
+    `/issue/${encodeURIComponent(issueKey)}?expand=changelog&fields=${encodeURIComponent(fields)}`,
+  );
+}
+
+function escapeJqlValue(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+export async function fetchAssignedIssuesOutsideProject(input: {
+  assigneeEmail: string;
+  excludedProjectKey: string;
+  sprintEnd: Date;
+  sprintStart: Date;
+}): Promise<JiraIssue[]> {
+  const { storyPointsFieldId } = await getJiraConfig();
+  const fields = ['created', 'summary', 'assignee', 'priority', 'status', storyPointsFieldId].join(',');
+  const pageSize = 100;
+  const issues: JiraIssue[] = [];
+  if (input.sprintStart.getTime() > input.sprintEnd.getTime()) {
+    return issues;
+  }
+
+  const jql = [
+    `assignee = \"${escapeJqlValue(input.assigneeEmail)}\"`,
+    `project != \"${escapeJqlValue(input.excludedProjectKey)}\"`,
+    'status NOT IN (\"To Do\", \"NEW\", \"Closed\", \"ON HOLD\", \"Rejected\", \"Dev Review\", \"Duplicate\", \"Backlog\")',
+  ].join(' AND ');
+  const orderedJql = `${jql} ORDER BY priority DESC, updated DESC`;
+  let nextPageToken: string | undefined;
+  let hasMoreResults = true;
+
+  while (hasMoreResults) {
+    const issueResponse = await jiraPost<JiraIssueSearchResponse>('/search/jql', {
+      fields: fields.split(','),
+      fieldsByKeys: false,
+      jql: orderedJql,
+      maxResults: pageSize,
+      ...(nextPageToken ? { nextPageToken } : {}),
+    });
+
+    const issuesWithChangelog = await Promise.all(
+      issueResponse.issues.map((issue) => fetchIssueWithChangelog(issue.key, fields)),
+    );
+
+    issues.push(...issuesWithChangelog);
+
+    if (issueResponse.nextPageToken) {
+      nextPageToken = issueResponse.nextPageToken;
+
+      if (issueResponse.isLast || issueResponse.issues.length === 0) {
+        hasMoreResults = false;
+      }
+
+      continue;
+    }
+
+    hasMoreResults = false;
   }
 
   return issues;

@@ -64,6 +64,7 @@ function IssueGroupTable({ issues, title }: { issues: ProcessedIssue[]; title: s
 
 export function DeveloperIssueTable({ group, member }: DeveloperIssueTableProps): ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(false);
+  const externalInProgressIssues = group.externalInProgressIssues;
   const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
   const unplannedIssues = group.issues.filter((issue) => issue.label === 'unplanned');
 
@@ -97,6 +98,7 @@ export function DeveloperIssueTable({ group, member }: DeveloperIssueTableProps)
         <CardContent className="space-y-6">
           {plannedIssues.length > 0 ? <IssueGroupTable issues={plannedIssues} title="Planned issues" /> : null}
           {unplannedIssues.length > 0 ? <IssueGroupTable issues={unplannedIssues} title="Unplanned issues" /> : null}
+          {externalInProgressIssues.length > 0 ? <IssueGroupTable issues={externalInProgressIssues} title="External in-progress issues" /> : null}
         </CardContent>
       )}
     </Card>

@@ -18,6 +18,12 @@ interface IssuePipelineSprintContext {
   storyPointsFieldId: string;
 }
 
+interface MemberLookup {
+  memberById: Map<string, IssueGroupMember>;
+  membersByEmail: Map<string, IssueGroupMember>;
+  uniqueMembersByName: Map<string, IssueGroupMember>;
+}
+
 const PRIORITY_ORDER: Record<string, number> = {
   'David Jackson': 0,
   Critical: 1,
@@ -52,6 +58,52 @@ function normalizeAssigneeIdentifier(value: string | null | undefined): string |
   const normalized = value.trim().toLowerCase();
 
   return normalized.length > 0 ? normalized : null;
+}
+
+function buildMemberLookup(members: IssueGroupMember[]): MemberLookup {
+  const membersByEmail = new Map<string, IssueGroupMember>();
+  const uniqueMembersByName = new Map<string, IssueGroupMember>();
+  const duplicateMemberNames = new Set<string>();
+
+  for (const member of members) {
+    const normalizedEmail = normalizeAssigneeIdentifier(member.jiraEmail);
+
+    if (normalizedEmail) {
+      membersByEmail.set(normalizedEmail, member);
+    }
+
+    const normalizedName = normalizeAssigneeIdentifier(member.name);
+
+    if (!normalizedName) {
+      continue;
+    }
+
+    if (uniqueMembersByName.has(normalizedName)) {
+      uniqueMembersByName.delete(normalizedName);
+      duplicateMemberNames.add(normalizedName);
+      continue;
+    }
+
+    if (!duplicateMemberNames.has(normalizedName)) {
+      uniqueMembersByName.set(normalizedName, member);
+    }
+  }
+
+  return {
+    memberById: new Map<string, IssueGroupMember>(members.map((member) => [member.id, member])),
+    membersByEmail,
+    uniqueMembersByName,
+  };
+}
+
+function findMemberForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssueGroupMember | null {
+  const assigneeIdentifier = getLastAssigneeIdentifier(issue, histories);
+
+  if (!assigneeIdentifier) {
+    return null;
+  }
+
+  return lookup.membersByEmail.get(assigneeIdentifier) ?? lookup.uniqueMembersByName.get(assigneeIdentifier) ?? null;
 }
 
 function getLastAssigneeIdentifier(issue: JiraIssue, histories: JiraIssueHistory[]): string | null {
@@ -132,12 +184,6 @@ function getIssueLabel(
 ): 'planned' | 'unplanned' {
   const planningCutoff = activatedAt ?? plannedStart;
 
-  if (!activatedAt) {
-    console.warn(
-      `[issue-pipeline] Sprint activation date missing for sprint '${sprintName}'. Falling back to plannedStart for planned/unplanned labeling.`,
-    );
-  }
-
   let addedAt: Date | null = null;
 
   for (const history of histories) {
@@ -168,12 +214,83 @@ function getIssueLabel(
   return addedAt <= planningCutoff ? 'planned' : 'unplanned';
 }
 
+function isInProgressStatus(status: string): boolean {
+  const normalizedStatus = status.trim().toLowerCase();
+
+  return (
+    normalizedStatus.includes('progress')
+    || normalizedStatus.includes('develop')
+    || normalizedStatus.includes('implement')
+    || normalizedStatus.includes('coding')
+    || normalizedStatus.includes('working')
+  );
+}
+
+function fallsWithinSprintWindow(date: Date, sprint: IssuePipelineSprintContext): boolean {
+  const sprintStart = startOfUtcDay(sprint.activatedAt ?? sprint.plannedStart).getTime();
+  const sprintEnd = startOfUtcDay(sprint.actualEnd ?? new Date()).getTime();
+  const value = startOfUtcDay(date).getTime();
+
+  return value >= sprintStart && value <= sprintEnd;
+}
+
+function intervalsOverlap(start: Date, end: Date, sprint: IssuePipelineSprintContext): boolean {
+  const intervalStart = startOfUtcDay(start).getTime();
+  const intervalEnd = startOfUtcDay(end).getTime();
+  const sprintStart = startOfUtcDay(sprint.activatedAt ?? sprint.plannedStart).getTime();
+  const sprintEnd = startOfUtcDay(sprint.actualEnd ?? new Date()).getTime();
+
+  return intervalStart <= sprintEnd && intervalEnd >= sprintStart;
+}
+
+function parseIssueCreatedAt(issue: JiraIssue): Date | null {
+  const createdAt = new Date(issue.fields.created);
+
+  return Number.isNaN(createdAt.getTime()) ? null : createdAt;
+}
+
+function hadInProgressStatusDuringSprint(
+  issue: JiraIssue,
+  histories: JiraIssueHistory[],
+  sprint: IssuePipelineSprintContext,
+): boolean {
+  let currentStatus = issue.fields.status.name;
+  let currentIntervalEnd = sprint.actualEnd ?? new Date();
+
+  for (const history of [...histories].reverse()) {
+    const statusItem = [...history.items].reverse().find((item) => item.field === 'status');
+
+    if (!statusItem) {
+      continue;
+    }
+
+    const changedAt = new Date(history.created);
+
+    if (!Number.isNaN(changedAt.getTime()) && isInProgressStatus(currentStatus) && intervalsOverlap(changedAt, currentIntervalEnd, sprint)) {
+      return true;
+    }
+
+    currentStatus = statusItem.fromString ?? currentStatus;
+    currentIntervalEnd = changedAt;
+  }
+
+  const issueCreatedAt = parseIssueCreatedAt(issue);
+
+  if (!issueCreatedAt) {
+    return false;
+  }
+
+  return isInProgressStatus(currentStatus) && intervalsOverlap(issueCreatedAt, currentIntervalEnd, sprint);
+}
+
 function toProcessedIssue(
   issue: JiraIssue,
   sprint: IssuePipelineSprintContext,
   assigneeEmail: string,
+  label: ProcessedIssue['label'],
+  histories?: JiraIssueHistory[],
 ): ProcessedIssue | null {
-  const filteredHistories = sortHistoriesAscending(
+  const filteredHistories = histories ?? sortHistoriesAscending(
     filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
   );
 
@@ -181,13 +298,15 @@ function toProcessedIssue(
     key: issue.key,
     title: issue.fields.summary,
     url: `https://${sprint.jiraDomain}/browse/${issue.key}`,
-    label: getIssueLabel(
-      filteredHistories,
-      sprint.activatedAt,
-      sprint.plannedStart,
-      sprint.sprintJiraId,
-      sprint.sprintName,
-    ),
+    label: label === 'external'
+      ? 'external'
+      : getIssueLabel(
+          filteredHistories,
+          sprint.activatedAt,
+          sprint.plannedStart,
+          sprint.sprintJiraId,
+          sprint.sprintName,
+        ),
     storyPoints: getStoryPoints(issue, filteredHistories, sprint.storyPointsFieldId, sprint.estimateInHours),
     status: getLastStatus(issue, filteredHistories),
     priority: issue.fields.priority?.name ?? null,
@@ -200,33 +319,13 @@ export function processSprintIssues(
   sprint: IssuePipelineSprintContext,
   members: IssueGroupMember[],
 ): DeveloperIssueGroup[] {
-  const membersByEmail = new Map<string, IssueGroupMember>();
-  const uniqueMembersByName = new Map<string, IssueGroupMember>();
-  const duplicateMemberNames = new Set<string>();
-
-  for (const member of members) {
-    const normalizedEmail = normalizeAssigneeIdentifier(member.jiraEmail);
-
-    if (normalizedEmail) {
-      membersByEmail.set(normalizedEmail, member);
-    }
-
-    const normalizedName = normalizeAssigneeIdentifier(member.name);
-
-    if (!normalizedName) {
-      continue;
-    }
-
-    if (uniqueMembersByName.has(normalizedName)) {
-      uniqueMembersByName.delete(normalizedName);
-      duplicateMemberNames.add(normalizedName);
-      continue;
-    }
-
-    if (!duplicateMemberNames.has(normalizedName)) {
-      uniqueMembersByName.set(normalizedName, member);
-    }
+  if (!sprint.activatedAt && issues.length > 0) {
+    console.warn(
+      `[issue-pipeline] Sprint activation date missing for sprint '${sprint.sprintName}'. Falling back to plannedStart for planned/unplanned labeling.`,
+    );
   }
+
+  const lookup = buildMemberLookup(members);
 
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
@@ -238,19 +337,25 @@ export function processSprintIssues(
     const filteredHistories = sortHistoriesAscending(
       filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
     );
-    const assigneeIdentifier = getLastAssigneeIdentifier(issue, filteredHistories);
-
-    if (!assigneeIdentifier) {
-      continue;
-    }
-
-    const member = membersByEmail.get(assigneeIdentifier) ?? uniqueMembersByName.get(assigneeIdentifier);
+    const member = findMemberForIssue(issue, filteredHistories, lookup);
 
     if (!member) {
       continue;
     }
 
-    const processedIssue = toProcessedIssue(issue, sprint, member.jiraEmail);
+    const processedIssue = toProcessedIssue(
+      issue,
+      sprint,
+      member.jiraEmail,
+      getIssueLabel(
+        filteredHistories,
+        sprint.activatedAt,
+        sprint.plannedStart,
+        sprint.sprintJiraId,
+        sprint.sprintName,
+      ),
+      filteredHistories,
+    );
 
     if (!processedIssue) {
       continue;
@@ -275,6 +380,7 @@ export function processSprintIssues(
 
       return {
         member,
+        externalInProgressIssues: [],
         issues: memberIssues,
         totalStoryPoints: memberIssues.reduce(
           (sum, currentIssue) => sum + (currentIssue.storyPoints ?? 0),
@@ -283,4 +389,55 @@ export function processSprintIssues(
       };
     })
     .filter((group): group is DeveloperIssueGroup => group !== null);
+}
+
+export function processExternalInProgressIssues(
+  issues: JiraIssue[],
+  sprint: IssuePipelineSprintContext,
+  members: IssueGroupMember[],
+): Map<string, ProcessedIssue[]> {
+  const lookup = buildMemberLookup(members);
+  const groupedIssues = new Map<string, ProcessedIssue[]>();
+
+  for (const issue of issues) {
+    if (!issue.fields.assignee) {
+      continue;
+    }
+
+    const filteredHistories = sortHistoriesAscending(issue.changelog.histories);
+    const member = findMemberForIssue(issue, filteredHistories, lookup);
+
+    if (!member || !hadInProgressStatusDuringSprint(issue, filteredHistories, sprint)) {
+      continue;
+    }
+
+    const processedIssue = toProcessedIssue(
+      issue,
+      sprint,
+      member.jiraEmail,
+      'external',
+      filteredHistories,
+    );
+
+    if (!processedIssue) {
+      continue;
+    }
+
+    const existingIssues = groupedIssues.get(member.id) ?? [];
+    existingIssues.push(processedIssue);
+    groupedIssues.set(member.id, existingIssues);
+  }
+
+  for (const [memberId, memberIssues] of groupedIssues.entries()) {
+    groupedIssues.set(
+      memberId,
+      [...memberIssues].sort(
+        (left, right) =>
+          (PRIORITY_ORDER[left.priority ?? ''] ?? 99)
+          - (PRIORITY_ORDER[right.priority ?? ''] ?? 99),
+      ),
+    );
+  }
+
+  return groupedIssues;
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 
-import { fetchSprintIssues, JiraRequestError } from '@/lib/jira';
+import { fetchAssignedIssuesOutsideProject, fetchSprintIssues, JiraRequestError } from '@/lib/jira';
 import { getSprintDashboardData, getSprintIssuesContext, upsertSprintIssueCache } from '@/lib/data/sprint';
-import { processSprintIssues } from '@/lib/issue-pipeline';
-import type { DeveloperIssueGroup, MemberCapacityData, ProcessedIssue } from '@/types';
+import { processExternalInProgressIssues, processSprintIssues } from '@/lib/issue-pipeline';
+import type { DeveloperIssueGroup, IssueGroupMember, JiraIssue, MemberCapacityData, ProcessedIssue } from '@/types';
 
 interface SprintExportRouteProps {
   params: Promise<{
@@ -134,6 +134,13 @@ function createIssueSectionRows(input: {
       rows.push(issueTableHeader);
       rows.push(...unplannedIssues.map(toIssueRow));
     }
+
+    if (group.externalInProgressIssues.length > 0) {
+      rows.push('');
+      rows.push('External in-progress issues');
+      rows.push(issueTableHeader);
+      rows.push(...group.externalInProgressIssues.map(toIssueRow));
+    }
   }
 
   return rows;
@@ -147,6 +154,99 @@ function toIssueRow(issue: ProcessedIssue): string {
     issue.priority,
     issue.status,
   ]);
+}
+
+async function fetchExternalIssues(input: {
+  members: IssueGroupMember[];
+  sprint: {
+    actualEnd: Date | null;
+    activatedAt: Date | null;
+    estimateInHours: boolean;
+    jiraDomain: string;
+    plannedStart: Date;
+    sprintJiraId: number;
+    sprintName: string;
+    storyPointsFieldId: string;
+  };
+  teamJiraSpace: string;
+}): Promise<JiraIssue[]> {
+  try {
+    const externalIssues = await Promise.all(
+      input.members.map(async (member) =>
+        fetchAssignedIssuesOutsideProject({
+          assigneeEmail: member.jiraEmail,
+          excludedProjectKey: input.teamJiraSpace,
+          sprintEnd: input.sprint.actualEnd ?? new Date(),
+          sprintStart: input.sprint.activatedAt ?? input.sprint.plannedStart,
+        })),
+    );
+
+    return externalIssues.flat();
+  } catch (error) {
+    if (error instanceof JiraRequestError) {
+      console.warn(
+        `[API /teams/:teamId/sprints/:sprintId/export] External Jira issue lookup skipped: ${error.message}`,
+      );
+
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+function mergeExternalIssues(input: {
+  externalIssues: JiraIssue[];
+  groups: DeveloperIssueGroup[];
+  members: IssueGroupMember[];
+  sprint: {
+    actualEnd: Date | null;
+    activatedAt: Date | null;
+    estimateInHours: boolean;
+    jiraDomain: string;
+    plannedStart: Date;
+    sprintJiraId: number;
+    sprintName: string;
+    storyPointsFieldId: string;
+  };
+}): DeveloperIssueGroup[] {
+  if (input.externalIssues.length === 0) {
+    return input.groups;
+  }
+
+  const groupedExternalIssues = processExternalInProgressIssues(
+    input.externalIssues,
+    input.sprint,
+    input.members,
+  );
+  const groupsByMemberId = new Map<string, DeveloperIssueGroup>(
+    input.groups.map((group) => [group.member.id, group]),
+  );
+
+  for (const member of input.members) {
+    const externalInProgressIssues = groupedExternalIssues.get(member.id) ?? [];
+    const existingGroup = groupsByMemberId.get(member.id);
+
+    if (existingGroup) {
+      existingGroup.externalInProgressIssues = externalInProgressIssues;
+      continue;
+    }
+
+    if (externalInProgressIssues.length === 0) {
+      continue;
+    }
+
+    groupsByMemberId.set(member.id, {
+      member,
+      externalInProgressIssues,
+      issues: [],
+      totalStoryPoints: 0,
+    });
+  }
+
+  return input.members
+    .map((member) => groupsByMemberId.get(member.id) ?? null)
+    .filter((group): group is DeveloperIssueGroup => group !== null);
 }
 
 export async function GET(
@@ -168,14 +268,9 @@ export async function GET(
 
     if (issuesContext) {
       const issues = issuesContext.cache
-        ? issuesContext.cache.data
+        ? issuesContext.cache.sprintIssues
         : await fetchSprintIssues(issuesContext.sprint.jiraSprintId);
-
-      if (!issuesContext.cache) {
-        await upsertSprintIssueCache(issuesContext.sprint.id, issues);
-      }
-
-      issueGroups = processSprintIssues(issues, {
+      const sprintContext = {
         actualEnd: issuesContext.sprint.actualEnd,
         activatedAt: issuesContext.sprint.activatedAt,
         estimateInHours: issuesContext.team.estimateInHours,
@@ -184,7 +279,28 @@ export async function GET(
         sprintJiraId: issuesContext.sprint.jiraSprintId,
         sprintName: issuesContext.sprint.name,
         storyPointsFieldId: issuesContext.storyPointsFieldId,
-      }, issuesContext.members);
+      };
+      const externalIssues = issuesContext.cache
+        ? issuesContext.cache.externalIssues
+        : await fetchExternalIssues({
+          members: issuesContext.members,
+          sprint: sprintContext,
+          teamJiraSpace: issuesContext.team.jiraSpace,
+        });
+
+      if (!issuesContext.cache) {
+        await upsertSprintIssueCache(issuesContext.sprint.id, {
+          externalIssues,
+          sprintIssues: issues,
+        });
+      }
+
+      issueGroups = mergeExternalIssues({
+        externalIssues,
+        groups: processSprintIssues(issues, sprintContext, issuesContext.members),
+        members: issuesContext.members,
+        sprint: sprintContext,
+      });
       issuesExportStatus = 'included';
     } else {
       issuesExportStatus = 'not_available';

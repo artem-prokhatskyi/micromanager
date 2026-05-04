@@ -23,6 +23,11 @@ import type {
   SprintRecord,
 } from '@/types';
 
+interface CachedSprintIssuesPayload {
+  externalIssues: JiraIssue[];
+  sprintIssues: JiraIssue[];
+}
+
 function toSprintListItem(sprint: SprintRecord): SprintListItem {
   return {
     ...sprint,
@@ -60,7 +65,29 @@ function readCachedJiraIssues(value: Prisma.JsonValue): JiraIssue[] {
   }, []);
 }
 
-function toPrismaJsonValue(value: JiraIssue[]): Prisma.InputJsonValue {
+function isCachedSprintIssuesPayload(value: unknown): value is Record<string, Prisma.JsonValue> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  return 'sprintIssues' in value || 'externalIssues' in value;
+}
+
+function readCachedSprintIssuesPayload(value: Prisma.JsonValue): CachedSprintIssuesPayload {
+  if (isCachedSprintIssuesPayload(value)) {
+    return {
+      externalIssues: readCachedJiraIssues(value.externalIssues ?? []),
+      sprintIssues: readCachedJiraIssues(value.sprintIssues ?? []),
+    };
+  }
+
+  return {
+    externalIssues: [],
+    sprintIssues: readCachedJiraIssues(value),
+  };
+}
+
+function toPrismaJsonValue(value: CachedSprintIssuesPayload): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
@@ -270,7 +297,8 @@ export async function getSprintDashboardData(
 
 export interface SprintIssuesContext {
   cache: {
-    data: JiraIssue[];
+    externalIssues: JiraIssue[];
+    sprintIssues: JiraIssue[];
     fetchedAt: Date;
   } | null;
   members: IssueGroupMember[];
@@ -280,6 +308,7 @@ export interface SprintIssuesContext {
     estimateInHours: boolean;
     id: string;
     jiraDomain: string;
+    jiraSpace: string;
   };
 }
 
@@ -319,6 +348,7 @@ export async function getSprintIssuesContext(
       select: {
         estimateInHours: true,
         id: true,
+        jiraSpace: true,
       },
     }),
     getTeamMembers(teamId),
@@ -337,7 +367,7 @@ export async function getSprintIssuesContext(
   return {
     cache: sprint.issueCache
       ? {
-          data: readCachedJiraIssues(sprint.issueCache.data),
+          ...readCachedSprintIssuesPayload(sprint.issueCache.data),
           fetchedAt: sprint.issueCache.fetchedAt,
         }
       : null,
@@ -352,13 +382,14 @@ export async function getSprintIssuesContext(
       estimateInHours: team.estimateInHours,
       id: team.id,
       jiraDomain: settings.jiraDomain,
+      jiraSpace: team.jiraSpace,
     },
   };
 }
 
 export async function upsertSprintIssueCache(
   sprintId: string,
-  data: JiraIssue[],
+  data: CachedSprintIssuesPayload,
 ): Promise<Date> {
   const issueCache = await prisma.sprintIssueCache.upsert({
     where: {

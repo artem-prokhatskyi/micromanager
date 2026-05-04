@@ -45,6 +45,8 @@ function isProcessedIssue(value: unknown): boolean {
 function isDeveloperIssueGroup(value: unknown): value is DeveloperIssueGroup {
   return isRecord(value)
     && isIssueGroupMember(value.member)
+    && Array.isArray(value.externalInProgressIssues)
+    && value.externalInProgressIssues.every((issue) => isProcessedIssue(issue))
     && Array.isArray(value.issues)
     && value.issues.every((issue) => isProcessedIssue(issue))
     && typeof value.totalStoryPoints === 'number';

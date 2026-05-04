@@ -124,6 +124,7 @@ export interface JiraIssueHistory {
 }
 
 export interface JiraIssueFields {
+  created: string;
   summary: string;
   assignee: JiraIssueAssignee | null;
   priority: JiraIssuePriority | null;
@@ -321,7 +322,7 @@ export interface ProcessedIssue {
   key: string;
   title: string;
   url: string;
-  label: 'planned' | 'unplanned';
+  label: 'planned' | 'unplanned' | 'external';
   storyPoints: number | null;
   status: string;
   priority: JiraIssuePriority['name'] | null;
@@ -330,6 +331,7 @@ export interface ProcessedIssue {
 
 export interface DeveloperIssueGroup {
   member: IssueGroupMember;
+  externalInProgressIssues: ProcessedIssue[];
   issues: ProcessedIssue[];
   totalStoryPoints: number;
 }
