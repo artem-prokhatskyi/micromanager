@@ -245,6 +245,7 @@ export interface CalendarMemberOption {
 export interface CalendarSprintBand {
   id: string;
   name: string;
+  activatedAt: string | null;
   plannedStart: string;
   plannedEnd: string;
   actualEnd: string | null;

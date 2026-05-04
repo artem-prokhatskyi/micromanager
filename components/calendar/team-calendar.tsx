@@ -202,6 +202,7 @@ export function TeamCalendar({ initialData, initialMonth, teamId }: TeamCalendar
                 nonWorkingDays={visibleRecords}
                 onDayClick={handleOpenDay}
                 sprints={initialData.sprints}
+                teamId={teamId}
               />
             ))}
           </div>

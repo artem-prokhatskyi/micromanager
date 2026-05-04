@@ -1,16 +1,14 @@
 import type { ReactElement } from 'react';
+import { useMemo } from 'react';
 
 import { CalendarDayCell } from '@/components/calendar/calendar-day-cell';
 import {
   endOfUtcMonth,
   formatUtcDate,
   getTodayUtc,
-  isSameUtcMonth,
   listUtcDaysInRange,
   parseUtcDate,
   startOfUtcMonth,
-  startOfUtcWeek,
-  endOfUtcWeek,
 } from '@/lib/date';
 import type { CalendarNonWorkingDayRecord, CalendarSprintBand } from '@/types';
 
@@ -19,9 +17,44 @@ interface CalendarMonthProps {
   nonWorkingDays: CalendarNonWorkingDayRecord[];
   onDayClick: (date: Date) => void;
   sprints: CalendarSprintBand[];
+  teamId: string;
 }
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const SPRINT_BAND_COLORS = [
+  {
+    active: 'bg-sky-500/35 border-sky-500/20',
+    overdue: 'border-sky-500/25 bg-gradient-to-r from-sky-500/35 to-destructive/45',
+  },
+  {
+    active: 'bg-emerald-500/35 border-emerald-500/20',
+    overdue: 'border-emerald-500/25 bg-gradient-to-r from-emerald-500/35 to-destructive/45',
+  },
+  {
+    active: 'bg-amber-500/35 border-amber-500/20',
+    overdue: 'border-amber-500/25 bg-gradient-to-r from-amber-500/35 to-destructive/45',
+  },
+  {
+    active: 'bg-fuchsia-500/35 border-fuchsia-500/20',
+    overdue: 'border-fuchsia-500/25 bg-gradient-to-r from-fuchsia-500/35 to-destructive/45',
+  },
+  {
+    active: 'bg-cyan-500/35 border-cyan-500/20',
+    overdue: 'border-cyan-500/25 bg-gradient-to-r from-cyan-500/35 to-destructive/45',
+  },
+  {
+    active: 'bg-rose-500/35 border-rose-500/20',
+    overdue: 'border-rose-500/25 bg-gradient-to-r from-rose-500/35 to-destructive/45',
+  },
+] as const;
+
+function getMondayWeekdayIndex(date: Date): number {
+  return (date.getUTCDay() + 6) % 7;
+}
+
+function getEffectiveSprintStart(sprint: CalendarSprintBand): Date {
+  return parseUtcDate(sprint.activatedAt ?? sprint.plannedStart);
+}
 
 function formatMonthLabel(month: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -39,12 +72,35 @@ function getEffectiveSprintEnd(sprint: CalendarSprintBand): Date {
   return sprint.isOverdue ? getTodayUtc() : parseUtcDate(sprint.plannedEnd);
 }
 
-export function CalendarMonth({ month, nonWorkingDays, onDayClick, sprints }: CalendarMonthProps): ReactElement {
+function getSprintBandClassName(paletteIndex: number, isOverdue: boolean): string {
+  const palette = SPRINT_BAND_COLORS[paletteIndex];
+
+  return isOverdue ? palette.overdue : palette.active;
+}
+
+export function CalendarMonth({ month, nonWorkingDays, onDayClick, sprints, teamId }: CalendarMonthProps): ReactElement {
   const monthStart = startOfUtcMonth(month);
   const monthEnd = endOfUtcMonth(month);
-  const gridStart = startOfUtcWeek(monthStart);
-  const gridEnd = endOfUtcWeek(monthEnd);
-  const days = listUtcDaysInRange(gridStart, gridEnd);
+  const days = listUtcDaysInRange(monthStart, monthEnd);
+  const leadingEmptyDays = getMondayWeekdayIndex(monthStart);
+  const trailingEmptyDays = (7 - ((leadingEmptyDays + days.length) % 7)) % 7;
+  const sprintPaletteIndexById = useMemo(
+    () => new Map(
+      [...sprints]
+        .sort((left, right) => {
+          const leftStart = getEffectiveSprintStart(left).getTime();
+          const rightStart = getEffectiveSprintStart(right).getTime();
+
+          if (leftStart !== rightStart) {
+            return leftStart - rightStart;
+          }
+
+          return left.name.localeCompare(right.name);
+        })
+        .map((sprint, index) => [sprint.id, index % SPRINT_BAND_COLORS.length]),
+    ),
+    [sprints],
+  );
 
   return (
     <section className="space-y-4 rounded-3xl border border-border/80 bg-background/50 p-4">
@@ -58,25 +114,31 @@ export function CalendarMonth({ month, nonWorkingDays, onDayClick, sprints }: Ca
         ))}
       </div>
       <div className="grid grid-cols-7 gap-2">
+        {Array.from({ length: leadingEmptyDays }).map((_, index) => (
+          <div aria-hidden="true" className="h-[66px] rounded-2xl border border-transparent" key={`leading-empty-${index}`} />
+        ))}
         {days.map((day) => {
           const dateKey = formatUtcDate(day);
           const dayRecords = nonWorkingDays.filter((record) => record.date === dateKey);
           const dayBands = sprints
             .filter((sprint) => {
-              const start = parseUtcDate(sprint.plannedStart);
+              const start = getEffectiveSprintStart(sprint);
               const end = getEffectiveSprintEnd(sprint);
 
               return day >= start && day <= end;
             })
             .map((sprint) => {
-              const start = parseUtcDate(sprint.plannedStart);
+              const start = getEffectiveSprintStart(sprint);
               const plannedEnd = parseUtcDate(sprint.plannedEnd);
               const end = getEffectiveSprintEnd(sprint);
+              const isOverdue = sprint.isOverdue && day.getTime() > plannedEnd.getTime();
+              const paletteIndex = sprintPaletteIndexById.get(sprint.id) ?? 0;
 
               return {
+                className: getSprintBandClassName(paletteIndex, isOverdue),
+                href: `/teams/${teamId}/sprints/${sprint.id}`,
                 id: sprint.id,
                 isEnd: day.getTime() === end.getTime(),
-                isOverdue: sprint.isOverdue && day.getTime() > plannedEnd.getTime(),
                 isStart: day.getTime() === start.getTime(),
                 title: sprint.name,
               };
@@ -86,13 +148,16 @@ export function CalendarMonth({ month, nonWorkingDays, onDayClick, sprints }: Ca
             <CalendarDayCell
               bands={dayBands}
               dateNumber={String(day.getUTCDate())}
-              isCurrentMonth={isSameUtcMonth(day, month)}
+              isCurrentMonth={true}
               key={dateKey}
               nonWorkingDays={dayRecords}
               onClick={() => onDayClick(day)}
             />
           );
         })}
+        {Array.from({ length: trailingEmptyDays }).map((_, index) => (
+          <div aria-hidden="true" className="h-[66px] rounded-2xl border border-transparent" key={`trailing-empty-${index}`} />
+        ))}
       </div>
     </section>
   );

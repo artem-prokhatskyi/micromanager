@@ -64,6 +64,7 @@ export async function getTeamCalendarData(
     sprints: sprints.map((sprint) => ({
       id: sprint.id,
       name: sprint.name,
+      activatedAt: sprint.activatedAt ? formatUtcDate(sprint.activatedAt) : null,
       plannedStart: formatUtcDate(sprint.plannedStart),
       plannedEnd: formatUtcDate(sprint.plannedEnd),
       actualEnd: sprint.actualEnd ? formatUtcDate(sprint.actualEnd) : null,

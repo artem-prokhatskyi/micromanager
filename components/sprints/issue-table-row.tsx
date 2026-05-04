@@ -112,13 +112,11 @@ export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowPr
         <div className="flex flex-wrap items-center gap-2">
           <a className="font-medium text-foreground" href={issue.url} rel="noopener noreferrer" target="_blank">
             {issue.title}
-          </a>
-          {issue.label === 'external' ? null : (
-            <Badge className={badgeClassName} variant={issue.label === 'planned' ? 'secondary' : 'outline'}>{issue.label}</Badge>
-          )}
+          </a>          
+          <Badge className={badgeClassName} variant={issue.label === 'planned' ? 'secondary' : 'outline'}>{issue.label}</Badge>
         </div>
       </TableCell>
-      <TableCell className="text-foreground">{issue.issueType ?? '—'}</TableCell>
+      <TableCell className="text-foreground text-nowrap text-xs">{issue.issueType ?? '—'}</TableCell>
       {showStoryPoints ? <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell> : null}
       <TableCell>
         {issue.priority ? (
@@ -126,13 +124,12 @@ export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowPr
         ) : '—'}
       </TableCell>
       <TableCell>
-        <div className="flex min-w-[180px] flex-col gap-2">
+        <div className="flex min-w-[180px] flex-row gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Begin</span>
             <Badge className={statusAtSprintStartBadgeClassName} variant="outline">{issue.statusAtSprintStart}</Badge>
           </div>
+          <div className="flex items-center">&#8594;</div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">End</span>
             <Badge className={statusAtSprintEndBadgeClassName} variant="outline">{issue.statusAtSprintEnd}</Badge>
           </div>
         </div>

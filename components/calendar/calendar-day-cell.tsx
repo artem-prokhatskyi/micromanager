@@ -2,14 +2,14 @@ import type { ReactElement } from 'react';
 
 import { NonWorkingDayTooltip } from '@/components/calendar/non-working-day-tooltip';
 import { SprintBand } from '@/components/calendar/sprint-band';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { CalendarNonWorkingDayRecord } from '@/types';
 
 interface DayBand {
+  className: string;
+  href: string;
   id: string;
   isEnd: boolean;
-  isOverdue: boolean;
   isStart: boolean;
   title: string;
 }
@@ -30,27 +30,37 @@ export function CalendarDayCell({
   onClick,
 }: CalendarDayCellProps): ReactElement {
   return (
-    <Button
+    <div
       className={cn(
-        'relative h-28 w-full flex-col items-stretch rounded-2xl border border-border/60 bg-background/70 px-2 py-2 text-left shadow-none hover:bg-accent/40',
+        'relative flex h-[66px] w-full cursor-pointer flex-col items-stretch justify-between rounded-2xl border border-border/60 bg-background/70 px-2 py-2 text-left shadow-none transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         !isCurrentMonth && 'bg-background/30 text-muted-foreground hover:bg-background/50',
       )}
       onClick={onClick}
-      type="button"
-      variant="ghost"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       <div className="space-y-1">
         {bands.map((band) => (
           <SprintBand
+            className={band.className}
+            href={band.href}
             isEnd={band.isEnd}
-            isOverdue={band.isOverdue}
             isStart={band.isStart}
             key={band.id}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
             title={band.title}
           />
         ))}
       </div>
-      <div className="mt-2 flex items-start justify-between gap-2">
+      <div className="flex items-end justify-between">
         <span className={cn('text-sm font-medium', !isCurrentMonth && 'text-muted-foreground')}>{dateNumber}</span>
         {nonWorkingDays.length > 0 ? (
           <NonWorkingDayTooltip records={nonWorkingDays}>
@@ -60,6 +70,6 @@ export function CalendarDayCell({
           </NonWorkingDayTooltip>
         ) : null}
       </div>
-    </Button>
+    </div>
   );
 }
