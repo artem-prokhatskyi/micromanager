@@ -375,6 +375,7 @@ export async function getSprintIssuesContext(
       id: member.id,
       jiraEmail: member.jiraEmail,
       name: member.name,
+      specialization: member.specialization,
     })),
     sprint: toSprintListItem(sprint),
     storyPointsFieldId: settings.storyPointsFieldId || 'story_points',

@@ -8,6 +8,13 @@ import { sortWorkingDays } from '@/lib/utils';
 import { SPECIALIZATION, WEEK_DAY } from '@/types';
 import type { ApiResponse, TeamMemberRecord } from '@/types';
 
+const specializationValues = [
+  SPECIALIZATION.FRONTEND,
+  SPECIALIZATION.BACKEND,
+  SPECIALIZATION.TEAM_LEADER,
+  SPECIALIZATION.QA,
+] as const;
+
 const createMemberSchema = z.object({
   name: z.string().trim().min(1, 'Name is required.'),
   jiraEmail: z.string().trim().email('Enter a valid Jira email address.'),
@@ -27,10 +34,7 @@ const createMemberSchema = z.object({
     .number({ invalid_type_error: 'Must be between 0 and 1.' })
     .gt(0, 'Must be greater than 0.')
     .lte(1, 'Must be between 0 and 1.'),
-  specialization: z
-    .enum([SPECIALIZATION.FRONTEND, SPECIALIZATION.BACKEND, SPECIALIZATION.BOTH])
-    .nullable()
-    .optional(),
+  specialization: z.array(z.enum(specializationValues)).optional().default([]),
 });
 
 function mapValidationErrors(error: z.ZodError): Record<string, string> {
@@ -132,7 +136,7 @@ export async function POST(
         githubUsername: result.data.githubUsername.trim(),
         workingDays: sortWorkingDays(result.data.workingDays),
         defaultFocusFactor: result.data.defaultFocusFactor,
-        specialization: result.data.specialization ?? null,
+        specialization: result.data.specialization,
       },
       select: {
         id: true,

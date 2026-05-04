@@ -20,7 +20,8 @@ enum WeekDay {
 enum Specialization {
   frontend
   backend
-  both
+  team_leader
+  qa
 }
 
 enum NonWorkingDayType {
@@ -61,7 +62,7 @@ model TeamMember {
   githubUsername     String              @default("")
   workingDays        WeekDay[]
   defaultFocusFactor Float
-  specialization     Specialization?
+  specialization     Specialization[]    @default([])
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   team               Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)

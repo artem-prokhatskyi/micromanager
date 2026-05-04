@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { fetchAssignedIssuesOutsideProject, fetchSprintIssues, JiraRequestError } from '@/lib/jira';
 import { getSprintDashboardData, getSprintIssuesContext, upsertSprintIssueCache } from '@/lib/data/sprint';
 import { processExternalInProgressIssues, processSprintIssues } from '@/lib/issue-pipeline';
+import { SPECIALIZATION_LABELS } from '@/types';
 import type { DeveloperIssueGroup, IssueGroupMember, JiraIssue, MemberCapacityData, ProcessedIssue } from '@/types';
 
 interface SprintExportRouteProps {
@@ -38,6 +39,10 @@ function sanitizeFilePart(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+function formatSpecializations(values: MemberCapacityData['specialization']): string {
+  return values.map((value) => SPECIALIZATION_LABELS[value]).join(', ');
+}
+
 function createCapacityRows(input: {
   members: MemberCapacityData[];
   sprint: {
@@ -64,7 +69,7 @@ function createCapacityRows(input: {
   const rows = input.members.map((member) =>
     toCsvRow([
       member.name,
-      member.specialization ?? '',
+      formatSpecializations(member.specialization),
       member.plannedWorkingDays,
       member.focusFactor,
       member.plannedCapacity,

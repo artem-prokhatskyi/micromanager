@@ -38,10 +38,32 @@ export const NON_WORKING_DAY_TYPES: NonWorkingDayType[] = [
 export const SPECIALIZATION = {
   FRONTEND: 'frontend',
   BACKEND: 'backend',
-  BOTH: 'both',
+  TEAM_LEADER: 'team_leader',
+  QA: 'qa',
 } as const;
 
 export type Specialization = (typeof SPECIALIZATION)[keyof typeof SPECIALIZATION];
+
+export const SPECIALIZATIONS: Specialization[] = [
+  SPECIALIZATION.FRONTEND,
+  SPECIALIZATION.BACKEND,
+  SPECIALIZATION.TEAM_LEADER,
+  SPECIALIZATION.QA,
+];
+
+export const SPECIALIZATION_LABELS: Record<Specialization, string> = {
+  [SPECIALIZATION.FRONTEND]: 'Frontend',
+  [SPECIALIZATION.BACKEND]: 'Backend',
+  [SPECIALIZATION.TEAM_LEADER]: 'Team Leader',
+  [SPECIALIZATION.QA]: 'QA',
+};
+
+export const SPECIALIZATION_SHORT_LABELS: Record<Specialization, string> = {
+  [SPECIALIZATION.FRONTEND]: 'FE',
+  [SPECIALIZATION.BACKEND]: 'BE',
+  [SPECIALIZATION.TEAM_LEADER]: 'TL',
+  [SPECIALIZATION.QA]: 'QA',
+};
 
 export interface ApiSuccess<T> {
   data: T;
@@ -176,7 +198,7 @@ export interface TeamMemberRecord {
   githubUsername: string;
   workingDays: WeekDay[];
   defaultFocusFactor: number;
-  specialization: Specialization | null;
+  specialization: Specialization[];
 }
 
 export interface TeamMemberFormValues {
@@ -186,8 +208,7 @@ export interface TeamMemberFormValues {
   githubUsername: string;
   workingDays: WeekDay[];
   defaultFocusFactor: string;
-  frontendSpecialization: boolean;
-  backendSpecialization: boolean;
+  specialization: Specialization[];
 }
 
 export interface TeamMemberValidationErrors {
@@ -290,7 +311,7 @@ export interface AbsenceSummary {
 export interface MemberCapacityData {
   memberId: string;
   name: string;
-  specialization: Specialization | null;
+  specialization: Specialization[];
   plannedWorkingDays: number;
   focusFactor: number;
   plannedCapacity: number;
@@ -316,6 +337,7 @@ export interface IssueGroupMember {
   id: string;
   jiraEmail: string;
   name: string;
+  specialization: Specialization[];
 }
 
 export interface ProcessedIssue {

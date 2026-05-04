@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { SPECIALIZATION_LABELS } from '@/types';
 import type { TeamMemberRecord } from '@/types';
 import { cn, sortWorkingDays } from '@/lib/utils';
 
@@ -27,16 +28,12 @@ interface TeamMemberCardProps {
   member: TeamMemberRecord;
 }
 
-function formatSpecialization(specialization: TeamMemberRecord['specialization']): string | null {
-  if (!specialization) {
+function formatSpecializations(specializations: TeamMemberRecord['specialization']): string | null {
+  if (specializations.length === 0) {
     return null;
   }
 
-  if (specialization === 'both') {
-    return 'Frontend + Backend';
-  }
-
-  return specialization === 'frontend' ? 'Frontend' : 'Backend';
+  return specializations.map((specialization) => SPECIALIZATION_LABELS[specialization]).join(', ');
 }
 
 export function TeamMemberCard({ member }: TeamMemberCardProps): ReactElement {
@@ -121,7 +118,7 @@ export function TeamMemberCard({ member }: TeamMemberCardProps): ReactElement {
         </div>
         <div>
           <p className="font-medium text-foreground">Specialization</p>
-          <p>{formatSpecialization(member.specialization) ?? 'Not set'}</p>
+          <p>{formatSpecializations(member.specialization) ?? 'Not set'}</p>
         </div>
       </div>
     </article>

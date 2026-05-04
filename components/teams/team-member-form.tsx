@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { WorkingDaysToggle } from '@/components/teams/working-days-toggle';
 import { useToast } from '@/hooks/use-toast';
-import { SPECIALIZATION, WEEK_DAYS } from '@/types';
+import { SPECIALIZATION_LABELS, SPECIALIZATIONS, WEEK_DAYS } from '@/types';
 import type {
   ApiError,
   ApiSuccess,
@@ -52,29 +52,16 @@ function getDefaultValues(initialValues: TeamMemberRecord | undefined, teamId: s
     githubUsername: initialValues?.githubUsername ?? '',
     workingDays: initialValues?.workingDays ?? [...WEEK_DAYS],
     defaultFocusFactor: initialValues ? String(initialValues.defaultFocusFactor) : '0.8',
-    frontendSpecialization:
-      initialValues?.specialization === SPECIALIZATION.FRONTEND ||
-      initialValues?.specialization === SPECIALIZATION.BOTH,
-    backendSpecialization:
-      initialValues?.specialization === SPECIALIZATION.BACKEND ||
-      initialValues?.specialization === SPECIALIZATION.BOTH,
+    specialization: initialValues?.specialization ?? [],
   };
 }
 
-function toSpecialization(values: TeamMemberFormValues): TeamMemberRecord['specialization'] {
-  if (values.frontendSpecialization && values.backendSpecialization) {
-    return SPECIALIZATION.BOTH;
+function toggleSpecialization(values: TeamMemberFormValues['specialization'], specialization: TeamMemberRecord['specialization'][number], checked: boolean): TeamMemberFormValues['specialization'] {
+  if (checked) {
+    return values.includes(specialization) ? values : [...values, specialization];
   }
 
-  if (values.frontendSpecialization) {
-    return SPECIALIZATION.FRONTEND;
-  }
-
-  if (values.backendSpecialization) {
-    return SPECIALIZATION.BACKEND;
-  }
-
-  return null;
+  return values.filter((value) => value !== specialization);
 }
 
 function getClientValidationErrors(values: TeamMemberFormValues): TeamMemberValidationErrors {
@@ -132,7 +119,7 @@ export function TeamMemberForm({ initialValues, mode, teamId, teams }: TeamMembe
         githubUsername: values.githubUsername,
         workingDays: values.workingDays,
         defaultFocusFactor: Number(values.defaultFocusFactor),
-        specialization: toSpecialization(values),
+        specialization: values.specialization,
       };
 
       const response = await fetch(
@@ -259,30 +246,20 @@ export function TeamMemberForm({ initialValues, mode, teamId, teams }: TeamMembe
           <div className="space-y-3">
             <Label>Specialization</Label>
             <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <Checkbox
-                  checked={values.frontendSpecialization}
-                  onChange={(event) =>
-                    setValues((current) => ({
-                      ...current,
-                      frontendSpecialization: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Frontend</span>
-              </label>
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <Checkbox
-                  checked={values.backendSpecialization}
-                  onChange={(event) =>
-                    setValues((current) => ({
-                      ...current,
-                      backendSpecialization: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Backend</span>
-              </label>
+              {SPECIALIZATIONS.map((specialization) => (
+                <label className="flex items-center gap-2 text-sm text-foreground" key={specialization}>
+                  <Checkbox
+                    checked={values.specialization.includes(specialization)}
+                    onChange={(event) =>
+                      setValues((current) => ({
+                        ...current,
+                        specialization: toggleSpecialization(current.specialization, specialization, event.target.checked),
+                      }))
+                    }
+                  />
+                  <span>{SPECIALIZATION_LABELS[specialization]}</span>
+                </label>
+              ))}
             </div>
             {errors.specialization ? <p className="text-sm text-red-300">{errors.specialization}</p> : null}
           </div>

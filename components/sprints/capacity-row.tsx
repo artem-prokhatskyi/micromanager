@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { FocusFactorInput } from '@/components/sprints/focus-factor-input';
 import { Badge } from '@/components/ui/badge';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { SPECIALIZATION_SHORT_LABELS } from '@/types';
 import type { MemberCapacityData } from '@/types';
 
 interface CapacityRowProps {
@@ -11,16 +12,8 @@ interface CapacityRowProps {
   onCommitFocusFactor: (memberId: string, nextValue: number, previousValue: number) => Promise<void>;
 }
 
-function formatSpecialization(specialization: MemberCapacityData['specialization']): string | null {
-  if (!specialization) {
-    return null;
-  }
-
-  if (specialization === 'both') {
-    return 'FE + BE';
-  }
-
-  return specialization === 'frontend' ? 'FE' : 'BE';
+function formatSpecializations(specializations: MemberCapacityData['specialization']): string[] {
+  return specializations.map((specialization) => SPECIALIZATION_SHORT_LABELS[specialization]);
 }
 
 function formatAbsenceSummary(member: MemberCapacityData): string | null {
@@ -34,7 +27,7 @@ function formatAbsenceSummary(member: MemberCapacityData): string | null {
 }
 
 export function CapacityRow({ isOverdue, member, onCommitFocusFactor }: CapacityRowProps): ReactElement {
-  const specialization = formatSpecialization(member.specialization);
+  const specializations = formatSpecializations(member.specialization);
   const absenceSummary = formatAbsenceSummary(member);
 
   return (
@@ -43,7 +36,7 @@ export function CapacityRow({ isOverdue, member, onCommitFocusFactor }: Capacity
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-foreground">{member.name}</span>
-            {specialization ? <Badge variant="outline">{specialization}</Badge> : null}
+            {specializations.map((specialization) => <Badge key={specialization} variant="outline">{specialization}</Badge>)}
           </div>
           {absenceSummary ? <p className="text-xs text-muted-foreground">{absenceSummary}</p> : null}
         </div>

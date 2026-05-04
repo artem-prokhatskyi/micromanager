@@ -7,6 +7,13 @@ import { sortWorkingDays } from '@/lib/utils';
 import { SPECIALIZATION, WEEK_DAY } from '@/types';
 import type { ApiResponse, TeamMemberRecord } from '@/types';
 
+const specializationValues = [
+  SPECIALIZATION.FRONTEND,
+  SPECIALIZATION.BACKEND,
+  SPECIALIZATION.TEAM_LEADER,
+  SPECIALIZATION.QA,
+] as const;
+
 const updateMemberSchema = z.object({
   name: z.string().trim().min(1, 'Name is required.').optional(),
   jiraEmail: z.string().trim().email('Enter a valid Jira email address.').optional(),
@@ -27,10 +34,7 @@ const updateMemberSchema = z.object({
     .gt(0, 'Must be greater than 0.')
     .lte(1, 'Must be between 0 and 1.')
     .optional(),
-  specialization: z
-    .enum([SPECIALIZATION.FRONTEND, SPECIALIZATION.BACKEND, SPECIALIZATION.BOTH])
-    .nullable()
-    .optional(),
+  specialization: z.array(z.enum(specializationValues)).optional(),
 });
 
 function mapValidationErrors(error: z.ZodError): Record<string, string> {

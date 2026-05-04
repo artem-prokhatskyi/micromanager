@@ -4,9 +4,11 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { IssueTableRow } from '@/components/sprints/issue-table-row';
+import { SPECIALIZATION_SHORT_LABELS } from '@/types';
 import type { DeveloperIssueGroup, MemberCapacityData, ProcessedIssue } from '@/types';
 
 interface DeveloperIssueTableProps {
@@ -62,11 +64,16 @@ function IssueGroupTable({ issues, title }: { issues: ProcessedIssue[]; title: s
   );
 }
 
+function formatSpecializationLabels(values: DeveloperIssueGroup['member']['specialization']): string[] {
+  return values.map((value) => SPECIALIZATION_SHORT_LABELS[value]);
+}
+
 export function DeveloperIssueTable({ group, member }: DeveloperIssueTableProps): ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const externalInProgressIssues = group.externalInProgressIssues;
   const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
   const unplannedIssues = group.issues.filter((issue) => issue.label === 'unplanned');
+  const specializationLabels = formatSpecializationLabels(group.member.specialization);
 
   return (
     <Card>
@@ -84,7 +91,14 @@ export function DeveloperIssueTable({ group, member }: DeveloperIssueTableProps)
               {collapsed ? 'Show tickets' : 'Hide tickets'}
             </Button>
             <div>
-              <CardTitle>{group.member.name}</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle>{group.member.name}</CardTitle>
+                {specializationLabels.map((specializationLabel) => (
+                  <Badge className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em]" variant="secondary">
+                    {specializationLabel}
+                  </Badge>
+                ))}
+              </div>
               <p className="text-sm text-muted-foreground">{group.issues.length} tickets</p>
             </div>
           </div>
