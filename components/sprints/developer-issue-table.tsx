@@ -51,7 +51,7 @@ function IssueGroupTable({ issues, showStoryPoints = true, title }: { issues: Pr
           <TableRow>
             <TableHead>Key</TableHead>
             <TableHead>Title</TableHead>
-            {showStoryPoints ? <TableHead>Story points</TableHead> : null}
+            {showStoryPoints ? <TableHead>SP</TableHead> : null}
             <TableHead>Priority</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
