@@ -38,86 +38,115 @@ function sanitizeFilePart(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-function createExportRows(input: {
-  issueGroups: DeveloperIssueGroup[];
-  issuesExportStatus: string;
+function createCapacityRows(input: {
   members: MemberCapacityData[];
   sprint: {
-    actualEnd: Date | null;
     isOverdue: boolean;
-    name: string;
-    plannedEnd: Date;
-    plannedStart: Date;
   };
-  teamName: string;
+  totals: {
+    actualCapacity: number | null;
+    plannedCapacity: number;
+  };
 }): string[] {
-  const issueGroupsByMemberId = new Map<string, ProcessedIssue[]>(
-    input.issueGroups.map((group) => [group.member.id, group.issues]),
+  const header = toCsvRow([
+    'member_name',
+    'member_specialization',
+    'planned_working_days',
+    'focus_factor',
+    'planned_capacity',
+    'actual_working_days',
+    'actual_capacity',
+    'holiday_days',
+    'vacation_days',
+    'sickleave_days',
+  ]);
+
+  const rows = input.members.map((member) =>
+    toCsvRow([
+      member.name,
+      member.specialization ?? '',
+      member.plannedWorkingDays,
+      member.focusFactor,
+      member.plannedCapacity,
+      input.sprint.isOverdue ? member.actualWorkingDays : null,
+      input.sprint.isOverdue ? member.actualCapacity : null,
+      member.absenceSummary.holiday,
+      member.absenceSummary.vacation,
+      member.absenceSummary.sickleave,
+    ]),
   );
 
-  return input.members.flatMap((member) => {
-    const issues = issueGroupsByMemberId.get(member.memberId) ?? [];
+  rows.push(
+    toCsvRow([
+      'Totals',
+      '',
+      '',
+      '',
+      input.totals.plannedCapacity,
+      '',
+      input.sprint.isOverdue ? input.totals.actualCapacity : null,
+      '',
+      '',
+      '',
+    ]),
+  );
 
-    if (issues.length === 0) {
-      return [
-        toCsvRow([
-          input.teamName,
-          input.sprint.name,
-          toIsoDate(input.sprint.plannedStart),
-          toIsoDate(input.sprint.plannedEnd),
-          toIsoDate(input.sprint.actualEnd),
-          input.sprint.isOverdue,
-          member.name,
-          member.specialization ?? '',
-          member.plannedWorkingDays,
-          member.focusFactor,
-          member.plannedCapacity,
-          member.actualWorkingDays,
-          member.actualCapacity,
-          member.absenceSummary.holiday,
-          member.absenceSummary.vacation,
-          member.absenceSummary.sickleave,
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          issues.length === 0 ? input.issuesExportStatus : 'included',
-        ]),
-      ];
+  return ['Capacity', header, ...rows];
+}
+
+function createIssueSectionRows(input: {
+  issueGroups: DeveloperIssueGroup[];
+  issuesExportStatus: string;
+}): string[] {
+  if (input.issuesExportStatus !== 'included') {
+    return ['Sprint issues', toCsvRow(['status', input.issuesExportStatus])];
+  }
+
+  const issueTableHeader = toCsvRow([
+    'key',
+    'title',
+    'story_points',
+    'priority',
+    'status',
+  ]);
+
+  const rows: string[] = ['Sprint issues'];
+
+  for (const group of input.issueGroups) {
+    const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
+    const unplannedIssues = group.issues.filter((issue) => issue.label === 'unplanned');
+
+    rows.push('');
+    rows.push(toCsvRow(['developer', group.member.name]));
+    rows.push(toCsvRow(['developer_jira_email', group.member.jiraEmail]));
+    rows.push(toCsvRow(['total_story_points', group.totalStoryPoints]));
+
+    if (plannedIssues.length > 0) {
+      rows.push('');
+      rows.push('Planned issues');
+      rows.push(issueTableHeader);
+      rows.push(...plannedIssues.map(toIssueRow));
     }
 
-    return issues.map((issue) =>
-      toCsvRow([
-        input.teamName,
-        input.sprint.name,
-        toIsoDate(input.sprint.plannedStart),
-        toIsoDate(input.sprint.plannedEnd),
-        toIsoDate(input.sprint.actualEnd),
-        input.sprint.isOverdue,
-        member.name,
-        member.specialization ?? '',
-        member.plannedWorkingDays,
-        member.focusFactor,
-        member.plannedCapacity,
-        member.actualWorkingDays,
-        member.actualCapacity,
-        member.absenceSummary.holiday,
-        member.absenceSummary.vacation,
-        member.absenceSummary.sickleave,
-        issue.key,
-        issue.title,
-        issue.label,
-        issue.storyPoints,
-        issue.status,
-        issue.priority,
-        issue.url,
-        'included',
-      ]),
-    );
-  });
+    if (unplannedIssues.length > 0) {
+      rows.push('');
+      rows.push('Unplanned issues');
+      rows.push(issueTableHeader);
+      rows.push(...unplannedIssues.map(toIssueRow));
+    }
+  }
+
+  return rows;
+}
+
+function toIssueRow(issue: ProcessedIssue): string {
+  return toCsvRow([
+    issue.key,
+    issue.title,
+    issue.storyPoints,
+    issue.priority,
+    issue.status,
+  ]);
 }
 
 export async function GET(
@@ -168,48 +197,27 @@ export async function GET(
     }
   }
 
-  const header = toCsvRow([
-    'team_name',
-    'sprint_name',
-    'planned_start',
-    'planned_end',
-    'actual_end',
-    'is_overdue',
-    'member_name',
-    'member_specialization',
-    'planned_working_days',
-    'focus_factor',
-    'planned_capacity',
-    'actual_working_days',
-    'actual_capacity',
-    'holiday_days',
-    'vacation_days',
-    'sickleave_days',
-    'issue_key',
-    'issue_title',
-    'issue_label',
-    'issue_story_points',
-    'issue_status',
-    'issue_priority',
-    'issue_url',
-    'issues_export_status',
-  ]);
-
-  const rows = createExportRows({
-    issueGroups,
-    issuesExportStatus,
+  const metadataRows = [
+    toCsvRow(['team_name', dashboardData.team.name]),
+    toCsvRow(['sprint_name', dashboardData.sprint.name]),
+    toCsvRow(['planned_start', toIsoDate(dashboardData.sprint.plannedStart)]),
+    toCsvRow(['planned_end', toIsoDate(dashboardData.sprint.plannedEnd)]),
+    toCsvRow(['actual_end', toIsoDate(dashboardData.sprint.actualEnd)]),
+    toCsvRow(['is_overdue', dashboardData.sprint.isOverdue]),
+  ];
+  const capacityRows = createCapacityRows({
     members: dashboardData.members,
     sprint: {
-      actualEnd: dashboardData.sprint.actualEnd,
       isOverdue: dashboardData.sprint.isOverdue,
-      name: dashboardData.sprint.name,
-      plannedEnd: dashboardData.sprint.plannedEnd,
-      plannedStart: dashboardData.sprint.plannedStart,
     },
-    teamName: dashboardData.team.name,
+    totals: dashboardData.totals,
+  });
+  const issueRows = createIssueSectionRows({
+    issueGroups,
+    issuesExportStatus,
   });
   const fileName = `${sanitizeFilePart(dashboardData.team.name)}-${sanitizeFilePart(dashboardData.sprint.name)}-dashboard.csv`;
-  const csv = [header, ...rows].join('\n');
+  const csv = [...metadataRows, '', ...capacityRows, '', ...issueRows].join('\n');
 
   return new Response(csv, {
     headers: {

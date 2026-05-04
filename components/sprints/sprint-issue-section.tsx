@@ -136,7 +136,11 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
           <h2 className="text-2xl font-semibold tracking-tight text-foreground">Sprint Issues</h2>
           <p className="text-sm text-muted-foreground">Grouped by the latest assignee state available for this sprint.</p>
         </div>
-        <RefreshButton isRefreshing={isRefreshing} onRefresh={() => void loadIssues('POST')} />
+        <RefreshButton
+          isRefreshing={isRefreshing}
+          lastRefreshedAt={cachedAt}
+          onRefresh={() => void loadIssues('POST')}
+        />
       </div>
 
       {status === 'loading' ? <IssueSkeleton /> : null}
