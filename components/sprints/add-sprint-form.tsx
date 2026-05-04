@@ -1,26 +1,20 @@
 'use client';
 
 import type { FormEvent, ReactElement } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import type { AddSprintFormValues, ApiError, ApiSuccess, JiraSprintMetadata, SprintOption, SprintRecord, SprintValidationErrors, TeamOption } from '@/types';
+import type { AddSprintFormValues, ApiError, ApiSuccess, JiraSprintMetadata, SprintRecord, SprintValidationErrors, TeamOption } from '@/types';
 
 interface AddSprintFormProps {
   teamId: string;
   teams: TeamOption[];
-}
-
-interface MultipleSprintMatches {
-  multiple: true;
-  options: JiraSprintMetadata[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -35,13 +29,17 @@ function isSprintSuccess(value: unknown): value is ApiSuccess<SprintRecord> {
   return isRecord(value) && isRecord(value.data) && typeof value.data.id === 'string';
 }
 
-function isMultipleMatchSuccess(value: unknown): value is ApiSuccess<MultipleSprintMatches> {
-  return (
-    isRecord(value) &&
-    isRecord(value.data) &&
-    value.data.multiple === true &&
-    Array.isArray(value.data.options)
-  );
+function isJiraSprintMetadata(value: unknown): value is JiraSprintMetadata {
+  return isRecord(value)
+    && typeof value.id === 'number'
+    && typeof value.name === 'string'
+    && typeof value.state === 'string';
+}
+
+function isAvailableSprintsSuccess(value: unknown): value is ApiSuccess<JiraSprintMetadata[]> {
+  return isRecord(value)
+    && Array.isArray(value.data)
+    && value.data.every((entry) => isJiraSprintMetadata(entry));
 }
 
 export function AddSprintForm({ teamId, teams }: AddSprintFormProps): ReactElement {
@@ -49,13 +47,70 @@ export function AddSprintForm({ teamId, teams }: AddSprintFormProps): ReactEleme
   const { toast } = useToast();
   const [values, setValues] = useState<AddSprintFormValues>({
     teamId,
-    sprintName: '',
     jiraSprintId: '',
   });
   const [errors, setErrors] = useState<SprintValidationErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [matches, setMatches] = useState<JiraSprintMetadata[]>([]);
+  const [availableSprints, setAvailableSprints] = useState<JiraSprintMetadata[]>([]);
+  const [isLoadingSprints, setIsLoadingSprints] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadAvailableSprints(): Promise<void> {
+      setIsLoadingSprints(true);
+      setSubmitError(null);
+      setErrors({});
+
+      try {
+        const response = await fetch(`/api/teams/${values.teamId}/sprints?scope=available`);
+        const payload: unknown = await response.json();
+
+        if (response.ok && isAvailableSprintsSuccess(payload)) {
+          if (!isActive) {
+            return;
+          }
+
+          setAvailableSprints(payload.data);
+          setValues((current) => ({
+            ...current,
+            jiraSprintId: payload.data[0] ? String(payload.data[0].id) : '',
+          }));
+          return;
+        }
+
+        if (isApiError(payload) && isActive) {
+          setSubmitError(payload.error.message);
+          setAvailableSprints([]);
+          setValues((current) => ({ ...current, jiraSprintId: '' }));
+          return;
+        }
+
+        if (isActive) {
+          setSubmitError('Failed to load available Jira sprints.');
+          setAvailableSprints([]);
+          setValues((current) => ({ ...current, jiraSprintId: '' }));
+        }
+      } catch {
+        if (isActive) {
+          setSubmitError('Failed to load available Jira sprints.');
+          setAvailableSprints([]);
+          setValues((current) => ({ ...current, jiraSprintId: '' }));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingSprints(false);
+        }
+      }
+    }
+
+    void loadAvailableSprints();
+
+    return () => {
+      isActive = false;
+    };
+  }, [values.teamId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -70,7 +125,6 @@ export function AddSprintForm({ teamId, teams }: AddSprintFormProps): ReactEleme
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sprintName: values.sprintName,
           jiraSprintId: values.jiraSprintId ? Number(values.jiraSprintId) : undefined,
         }),
       });
@@ -83,19 +137,9 @@ export function AddSprintForm({ teamId, teams }: AddSprintFormProps): ReactEleme
         return;
       }
 
-      if (response.ok && isMultipleMatchSuccess(payload)) {
-        setMatches(payload.data.options);
-        setValues((current) => ({
-          ...current,
-          jiraSprintId: String(payload.data.options[0]?.id ?? ''),
-        }));
-        return;
-      }
-
       if (isApiError(payload)) {
         if (response.status === 400) {
           setErrors({
-            sprintName: payload.error.details?.sprintName,
             jiraSprintId: payload.error.details?.jiraSprintId,
           });
         }
@@ -117,7 +161,7 @@ export function AddSprintForm({ teamId, teams }: AddSprintFormProps): ReactEleme
       <CardHeader>
         <CardTitle>Add Sprint</CardTitle>
         <CardDescription>
-          Look up a sprint by name in Jira and attach it to the selected team so capacity can be calculated automatically.
+          Pick any Jira sprint that is not yet attached to this team, including previous closed sprints, and import it as the source of truth for capacity planning.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -145,50 +189,36 @@ export function AddSprintForm({ teamId, teams }: AddSprintFormProps): ReactEleme
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="sprint-name">Sprint name</Label>
-            <Input
-              id="sprint-name"
+            <Label htmlFor="jira-sprint-id">Available Jira sprints</Label>
+            <Select
+              disabled={isLoadingSprints || availableSprints.length === 0}
+              id="jira-sprint-id"
               onChange={(event) =>
                 setValues((current) => ({
                   ...current,
-                  sprintName: event.target.value,
+                  jiraSprintId: event.target.value,
                 }))
               }
-              placeholder="Sprint 42"
-              value={values.sprintName}
-            />
-            {errors.sprintName ? <p className="text-sm text-red-300">{errors.sprintName}</p> : null}
+              value={values.jiraSprintId}
+            >
+              {availableSprints.length === 0 ? <option value="">No available sprints</option> : null}
+              {availableSprints.map((sprint) => (
+                <option key={sprint.id} value={String(sprint.id)}>
+                  {sprint.name} ({sprint.state})
+                </option>
+              ))}
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              {isLoadingSprints
+                ? 'Loading Jira sprints for the selected team...'
+                : 'Only Jira sprints that are not already added for this team are shown here, including closed sprints.'}
+            </p>
+            {errors.jiraSprintId ? <p className="text-sm text-red-300">{errors.jiraSprintId}</p> : null}
           </div>
 
-          {matches.length > 0 ? (
-            <div className="space-y-2">
-              <Label htmlFor="jira-sprint-id">Matching Jira sprints</Label>
-              <Select
-                id="jira-sprint-id"
-                onChange={(event) =>
-                  setValues((current) => ({
-                    ...current,
-                    jiraSprintId: event.target.value,
-                  }))
-                }
-                value={values.jiraSprintId}
-              >
-                {matches.map((match) => (
-                  <option key={match.id} value={String(match.id)}>
-                    {match.name} ({match.state})
-                  </option>
-                ))}
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                Jira returned multiple sprints with this name. Pick the exact sprint to import.
-              </p>
-              {errors.jiraSprintId ? <p className="text-sm text-red-300">{errors.jiraSprintId}</p> : null}
-            </div>
-          ) : null}
-
           <div className="flex justify-end">
-            <Button disabled={isSaving} type="submit">
-              {isSaving ? 'Searching Jira...' : matches.length > 0 ? 'Add selected sprint' : 'Find in Jira'}
+            <Button disabled={isSaving || isLoadingSprints || values.jiraSprintId.length === 0} type="submit">
+              {isSaving ? 'Adding sprint...' : 'Add sprint'}
             </Button>
           </div>
         </form>

@@ -3,13 +3,13 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { getTeamSprints } from '@/lib/data/sprint';
-import { findSprintsByName, JiraRequestError, resolveJiraSprintDates } from '@/lib/jira';
+import { findAvailableSprints, findSprintsByName, JiraRequestError, resolveJiraSprintDates } from '@/lib/jira';
 import { prisma } from '@/lib/prisma';
 import type { ApiResponse, JiraSprintMetadata, SprintListItem, SprintRecord } from '@/types';
 
 const createSprintSchema = z.object({
-  sprintName: z.string().trim().min(1, 'Sprint name is required.'),
-  jiraSprintId: z.coerce.number().int().positive().optional(),
+  sprintName: z.string().trim().optional(),
+  jiraSprintId: z.coerce.number().int().positive('Select a sprint to add.'),
 });
 
 interface SprintsRouteProps {
@@ -21,6 +21,10 @@ interface SprintsRouteProps {
 interface MultipleSprintMatches {
   multiple: true;
   options: JiraSprintMetadata[];
+}
+
+interface AvailableSprintOption extends JiraSprintMetadata {
+  alreadyAdded: false;
 }
 
 function mapValidationErrors(error: z.ZodError): Record<string, string> {
@@ -50,9 +54,9 @@ function toSprintCreateData(teamId: string, sprint: JiraSprintMetadata): Pick<Sp
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: SprintsRouteProps,
-): Promise<NextResponse<ApiResponse<SprintListItem[]>>> {
+): Promise<NextResponse<ApiResponse<SprintListItem[] | AvailableSprintOption[]>>> {
   try {
     const { teamId } = await params;
     const team = await prisma.team.findUnique({
@@ -61,11 +65,36 @@ export async function GET(
       },
       select: {
         id: true,
+        jiraSpace: true,
       },
     });
 
     if (!team) {
       return NextResponse.json({ error: { message: 'Team not found.' } }, { status: 404 });
+    }
+
+    const scope = new URL(request.url).searchParams.get('scope');
+
+    if (scope === 'available') {
+      const availableSprints = await findAvailableSprints(team.jiraSpace);
+      const existingSprints = await prisma.sprint.findMany({
+        where: {
+          teamId,
+        },
+        select: {
+          jiraSprintId: true,
+        },
+      });
+      const existingSprintIds = new Set(existingSprints.map((sprint) => sprint.jiraSprintId));
+
+      return NextResponse.json({
+        data: availableSprints
+          .filter((sprint) => !existingSprintIds.has(sprint.id))
+          .map((sprint) => ({
+            ...sprint,
+            alreadyAdded: false as const,
+          })),
+      });
     }
 
     const sprints = await getTeamSprints(teamId);
@@ -117,26 +146,8 @@ export async function POST(
       );
     }
 
-    const sprintMatches = await findSprintsByName(team.jiraSpace, result.data.sprintName);
-
-    if (sprintMatches.length === 0) {
-      return NextResponse.json(
-        {
-          error: {
-            message: `Sprint '${result.data.sprintName}' not found in Jira.`,
-          },
-        },
-        { status: 404 },
-      );
-    }
-
-    if (result.data.jiraSprintId === undefined && sprintMatches.length > 1) {
-      return NextResponse.json({ data: { multiple: true, options: sprintMatches } });
-    }
-
-    const matchedSprint = result.data.jiraSprintId === undefined
-      ? sprintMatches[0]
-      : sprintMatches.find((sprint) => sprint.id === result.data.jiraSprintId);
+    const availableSprints = await findAvailableSprints(team.jiraSpace);
+    const matchedSprint = availableSprints.find((sprint) => sprint.id === result.data.jiraSprintId);
 
     if (!matchedSprint) {
       return NextResponse.json(

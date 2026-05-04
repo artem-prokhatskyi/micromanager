@@ -292,13 +292,11 @@ export interface SprintOption {
 
 export interface AddSprintFormValues {
   teamId: string;
-  sprintName: string;
   jiraSprintId: string;
 }
 
 export interface SprintValidationErrors {
   teamId?: string;
-  sprintName?: string;
   jiraSprintId?: string;
 }
 

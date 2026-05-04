@@ -31,6 +31,14 @@ interface JiraBoardSearchResponse {
   }>;
 }
 
+interface JiraBoardConfigurationResponse {
+  id: number;
+  location?: {
+    projectKeyOrId?: string;
+    type?: 'project' | 'user';
+  };
+}
+
 interface JiraSprintSearchResponse {
   values: JiraSprintMetadata[];
   isLast?: boolean;
@@ -409,12 +417,40 @@ export async function findSprintsByName(
   jiraSpace: string,
   sprintName: string,
 ): Promise<JiraSprintMetadata[]> {
+  const collectedSprints = await findAvailableSprints(jiraSpace);
+  const normalizedSprintName = sprintName.trim().toLowerCase();
+
+  return collectedSprints.filter(
+    (sprint) => sprint.name.trim().toLowerCase() === normalizedSprintName,
+  );
+}
+
+export async function findAvailableSprints(jiraSpace: string): Promise<JiraSprintMetadata[]> {
   const boardResponse = await jiraFetch<JiraBoardSearchResponse>(
     `/board?projectKeyOrId=${encodeURIComponent(jiraSpace)}`,
     JIRA_AGILE_BASE_PATH,
   );
 
-  const boardId = boardResponse.values.filter(({ type }) => type === 'scrum')[0]?.id;
+  const scrumBoards = boardResponse.values.filter(({ type }) => type === 'scrum');
+
+  let boardId = scrumBoards[0]?.id;
+
+  if (scrumBoards.length > 1) {
+    const normalizedJiraSpace = jiraSpace.trim().toLowerCase();
+
+    for (const board of scrumBoards) {
+      const boardConfiguration = await jiraFetch<JiraBoardConfigurationResponse>(
+        `/board/${board.id}/configuration`,
+        JIRA_AGILE_BASE_PATH,
+      );
+      const boardProjectKeyOrId = boardConfiguration.location?.projectKeyOrId?.trim().toLowerCase();
+
+      if (boardConfiguration.location?.type === 'project' && boardProjectKeyOrId === normalizedJiraSpace) {
+        boardId = board.id;
+        break;
+      }
+    }
+  }
 
   if (!boardId) {
     return [];
@@ -426,7 +462,7 @@ export async function findSprintsByName(
 
   while (hasMoreResults) {
     const sprintResponse = await jiraFetch<JiraSprintSearchResponse>(
-      `/board/${boardId}/sprint?state=active,future&maxResults=50&startAt=${startAt}`,
+      `/board/${boardId}/sprint?state=active,future,closed&maxResults=50&startAt=${startAt}`,
       JIRA_AGILE_BASE_PATH,
     );
 
@@ -447,11 +483,20 @@ export async function findSprintsByName(
     startAt += pageSize;
   }
 
-  const normalizedSprintName = sprintName.trim().toLowerCase();
+  return [...collectedSprints].sort((left, right) => {
+    const leftDate = parseJiraDate(left.startDate)
+      ?? parseJiraDate(left.activatedDate)
+      ?? parseJiraDate(left.endDate)
+      ?? parseJiraDate(left.completeDate)
+      ?? new Date(0);
+    const rightDate = parseJiraDate(right.startDate)
+      ?? parseJiraDate(right.activatedDate)
+      ?? parseJiraDate(right.endDate)
+      ?? parseJiraDate(right.completeDate)
+      ?? new Date(0);
 
-  return collectedSprints.filter(
-    (sprint) => sprint.name.trim().toLowerCase() === normalizedSprintName,
-  );
+    return rightDate.getTime() - leftDate.getTime();
+  });
 }
 
 export async function findSprintByName(
