@@ -82,6 +82,7 @@ export function CalendarMonth({ month, nonWorkingDays, onDayClick, sprints, team
   const monthStart = startOfUtcMonth(month);
   const monthEnd = endOfUtcMonth(month);
   const days = listUtcDaysInRange(monthStart, monthEnd);
+  const todayKey = formatUtcDate(getTodayUtc());
   const leadingEmptyDays = getMondayWeekdayIndex(monthStart);
   const trailingEmptyDays = (7 - ((leadingEmptyDays + days.length) % 7)) % 7;
   const sprintPaletteIndexById = useMemo(
@@ -149,6 +150,7 @@ export function CalendarMonth({ month, nonWorkingDays, onDayClick, sprints, team
               bands={dayBands}
               dateNumber={String(day.getUTCDate())}
               isCurrentMonth={true}
+              isToday={dateKey === todayKey}
               key={dateKey}
               nonWorkingDays={dayRecords}
               onClick={() => onDayClick(day)}

@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server';
 import { getAccessibleTeamId, getCurrentUserOrNull } from '@/lib/auth';
 import { fetchAssignedIssuesOutsideProject, fetchSprintIssues, JiraRequestError } from '@/lib/jira';
 import { getSprintDashboardData, getSprintIssuesContext, upsertSprintIssueCache } from '@/lib/data/sprint';
-import { processExternalInProgressIssues, processSprintIssues } from '@/lib/issue-pipeline';
+import {
+  processExternalInProgressIssues,
+  processQaExternalInProgressIssues,
+  processQaSprintIssues,
+  processSprintIssues,
+} from '@/lib/issue-pipeline';
 import { SPECIALIZATION_LABELS } from '@/types';
 import type { DeveloperIssueGroup, IssueGroupMember, JiraIssue, MemberCapacityData, ProcessedIssue } from '@/types';
 
@@ -103,9 +108,12 @@ function createCapacityRows(input: {
 function createIssueSectionRows(input: {
   issueGroups: DeveloperIssueGroup[];
   issuesExportStatus: string;
+  title?: string;
 }): string[] {
+  const sectionTitle = input.title ?? 'Sprint issues';
+
   if (input.issuesExportStatus !== 'included') {
-    return ['Sprint issues', toCsvRow(['status', input.issuesExportStatus])];
+    return [sectionTitle, toCsvRow(['status', input.issuesExportStatus])];
   }
 
   const issueTableHeader = toCsvRow([
@@ -116,7 +124,7 @@ function createIssueSectionRows(input: {
     'status',
   ]);
 
-  const rows: string[] = ['Sprint issues'];
+  const rows: string[] = [sectionTitle];
 
   for (const group of input.issueGroups) {
     const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
@@ -279,6 +287,7 @@ export async function GET(
   }
 
   let issueGroups: DeveloperIssueGroup[] = [];
+  let qaIssueGroups: DeveloperIssueGroup[] = [];
   let issuesExportStatus = 'not_requested';
 
   try {
@@ -313,12 +322,56 @@ export async function GET(
         });
       }
 
+      const qaMembers = issuesContext.members.filter((member) => member.specialization.includes('qa'));
       issueGroups = mergeExternalIssues({
         externalIssues,
         groups: processSprintIssues(issues, sprintContext, issuesContext.members),
         members: issuesContext.members,
         sprint: sprintContext,
       });
+      qaIssueGroups = mergeExternalIssues({
+        externalIssues,
+        groups: processQaSprintIssues(issues, sprintContext, issuesContext.members),
+        members: qaMembers,
+        sprint: sprintContext,
+      });
+
+      if (externalIssues.length > 0) {
+        const groupedQaExternalIssues = processQaExternalInProgressIssues(
+          externalIssues,
+          sprintContext,
+          issuesContext.members,
+        );
+        const groupsByMemberId = new Map<string, DeveloperIssueGroup>(
+          qaIssueGroups.map((group) => [group.member.id, group]),
+        );
+
+        for (const member of qaMembers) {
+          const externalInProgressIssues = groupedQaExternalIssues.get(member.id) ?? [];
+          const existingGroup = groupsByMemberId.get(member.id);
+
+          if (existingGroup) {
+            existingGroup.externalInProgressIssues = externalInProgressIssues;
+            continue;
+          }
+
+          if (externalInProgressIssues.length === 0) {
+            continue;
+          }
+
+          groupsByMemberId.set(member.id, {
+            member,
+            externalInProgressIssues,
+            issues: [],
+            totalStoryPoints: 0,
+          });
+        }
+
+        qaIssueGroups = qaMembers
+          .map((member) => groupsByMemberId.get(member.id) ?? null)
+          .filter((group): group is DeveloperIssueGroup => group !== null);
+      }
+
       issuesExportStatus = 'included';
     } else {
       issuesExportStatus = 'not_available';
@@ -350,8 +403,13 @@ export async function GET(
     issueGroups,
     issuesExportStatus,
   });
+  const qaIssueRows = createIssueSectionRows({
+    issueGroups: qaIssueGroups,
+    issuesExportStatus,
+    title: 'QA issues',
+  });
   const fileName = `${sanitizeFilePart(dashboardData.team.name)}-${sanitizeFilePart(dashboardData.sprint.name)}-dashboard.csv`;
-  const csv = [...metadataRows, '', ...capacityRows, '', ...issueRows].join('\n');
+  const csv = [...metadataRows, '', ...capacityRows, '', ...issueRows, '', ...qaIssueRows].join('\n');
 
   return new Response(csv, {
     headers: {

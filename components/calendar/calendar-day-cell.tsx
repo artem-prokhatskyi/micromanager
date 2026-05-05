@@ -18,6 +18,7 @@ interface CalendarDayCellProps {
   bands: DayBand[];
   dateNumber: string;
   isCurrentMonth: boolean;
+  isToday: boolean;
   nonWorkingDays: CalendarNonWorkingDayRecord[];
   onClick: () => void;
 }
@@ -26,6 +27,7 @@ export function CalendarDayCell({
   bands,
   dateNumber,
   isCurrentMonth,
+  isToday,
   nonWorkingDays,
   onClick,
 }: CalendarDayCellProps): ReactElement {
@@ -33,6 +35,7 @@ export function CalendarDayCell({
     <div
       className={cn(
         'relative flex h-[66px] w-full cursor-pointer flex-col items-stretch justify-between rounded-2xl border border-border/60 bg-background/70 px-2 py-2 text-left shadow-none transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        isToday && 'border-primary/70 bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.16)] hover:bg-primary/15',
         !isCurrentMonth && 'bg-background/30 text-muted-foreground hover:bg-background/50',
       )}
       onClick={onClick}
