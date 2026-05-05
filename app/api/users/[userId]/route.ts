@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { deactivateUser, getCurrentUserOrNull } from '@/lib/auth';
+import { deleteUser, getCurrentUserOrNull } from '@/lib/auth';
 import type { ApiResponse } from '@/types';
 
 export async function DELETE(
@@ -26,14 +26,21 @@ export async function DELETE(
 
     const { userId } = await params;
 
-    await deactivateUser(userId);
+    await deleteUser(userId);
 
     return NextResponse.json({ data: { success: true } });
   } catch (error) {
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return NextResponse.json(
+        { error: { message: 'User not found.' } },
+        { status: 404 },
+      );
+    }
+
     console.error('[API /users/:userId DELETE]', error);
 
     return NextResponse.json(
-      { error: { message: 'Failed to deactivate user.' } },
+      { error: { message: 'Failed to delete user.' } },
       { status: 500 },
     );
   }

@@ -244,22 +244,13 @@ export function UserManagementPanel({ currentUserEmail, currentUserId, initialUs
       const apiError = readApiError(payload);
 
       if (!response.ok) {
-        setInviteError(apiError.error?.message ?? 'Failed to deactivate user.');
+        setInviteError(apiError.error?.message ?? 'Failed to delete user.');
         return;
       }
 
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === userId
-            ? {
-                ...user,
-                status: 'deactivated',
-              }
-            : user,
-        ),
-      );
+      setUsers((current) => current.filter((user) => user.id !== userId));
     } catch {
-      setInviteError('Failed to deactivate user.');
+      setInviteError('Failed to delete user.');
     } finally {
       setLoading(key, false);
     }
@@ -382,18 +373,18 @@ export function UserManagementPanel({ currentUserEmail, currentUserId, initialUs
 
                   <AlertDialog>
                     <AlertDialogTrigger className="inline-flex h-10 items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:pointer-events-none disabled:opacity-50" disabled={deleteSaving || user.status === 'deactivated'}>
-                      {deleteSaving ? 'Deactivating...' : 'Delete'}
+                      {deleteSaving ? 'Deleting...' : 'Delete'}
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Deactivate user?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete user?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This keeps the user in the system, terminates active sessions, and prevents future logins.
+                          This permanently removes the user account, terminates active sessions, and deletes pending invites and assignments.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => void handleDelete(user.id)}>Deactivate</AlertDialogAction>
+                        <AlertDialogAction onClick={() => void handleDelete(user.id)}>Delete</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>

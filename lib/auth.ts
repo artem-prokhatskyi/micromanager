@@ -653,7 +653,7 @@ export async function updateUserTeamAssignments(userId: string, teamIds: string[
   });
 }
 
-export async function deactivateUser(userId: string): Promise<void> {
+export async function deleteUser(userId: string): Promise<void> {
   await prisma.$transaction(async (transaction) => {
     const user = await transaction.user.findUnique({
       where: {
@@ -668,19 +668,9 @@ export async function deactivateUser(userId: string): Promise<void> {
       throw new Error('USER_NOT_FOUND');
     }
 
-    await transaction.user.update({
+    await transaction.user.delete({
       where: {
         id: userId,
-      },
-      data: {
-        mustChangePassword: false,
-        status: UserStatus.deactivated,
-      },
-    });
-
-    await transaction.userSession.deleteMany({
-      where: {
-        userId,
       },
     });
   });

@@ -50,14 +50,17 @@ export function Sidebar({ collapsed, currentUser, onToggle, teams }: SidebarProp
       <div className={cn('mb-6 flex items-center', collapsed ? 'justify-center' : 'justify-between gap-3 px-1')}>
         {collapsed ? null : (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-muted-foreground">Monitor</p>
-            <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground">Sprint Shell</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-muted-foreground">Sprint Monitor</p>
           </div>
         )}
         <SidebarToggle collapsed={collapsed} onToggle={onToggle} />
       </div>
 
       <div className="space-y-4">
+        <UserSessionPanel collapsed={collapsed} currentUser={currentUser} />
+
+        <Separator className="my-4" />
+
         <section className="space-y-3">
           {collapsed ? null : (
             <div className="px-2">
@@ -70,28 +73,20 @@ export function Sidebar({ collapsed, currentUser, onToggle, teams }: SidebarProp
         <Separator />
 
         <SidebarNavLinks collapsed={collapsed} isAdmin={currentUser.role === 'admin'} />
+
+        <Link
+          className={cn(
+            'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors duration-200',
+            settingsIsActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-card/70 hover:text-foreground',
+            collapsed ? 'justify-center px-2' : 'justify-start',
+          )}
+          href="/settings"
+          title="Settings"
+        >
+          <SettingsIcon />
+          {collapsed ? null : <span>Settings</span>}
+        </Link>
       </div>
-
-      <div className="flex-1" />
-
-      <Separator className="my-4" />
-
-      <UserSessionPanel collapsed={collapsed} currentUser={currentUser} />
-
-      <Separator className="my-4" />
-
-      <Link
-        className={cn(
-          'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors duration-200',
-          settingsIsActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-card/70 hover:text-foreground',
-          collapsed ? 'justify-center px-2' : 'justify-start',
-        )}
-        href="/settings"
-        title="Settings"
-      >
-        <SettingsIcon />
-        {collapsed ? null : <span>Settings</span>}
-      </Link>
     </aside>
   );
 }

@@ -34,8 +34,8 @@ export function UserSessionPanel({ collapsed, currentUser }: UserSessionPanelPro
   return (
     <div className="space-y-3 rounded-2xl border border-border/80 bg-card/40 p-3">
       {collapsed ? (
-        <div className="text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          {currentUser.role}
+        <div className="truncate text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          {currentUser.email}
         </div>
       ) : (
         <>
