@@ -161,7 +161,7 @@ export function SprintCapacityTable({ members, sprint, sprints, teamId }: Sprint
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete {sprint.name}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This also removes per-sprint focus factors and cached issue data for the sprint.
+                    This also removes per-sprint focus factors and cached issue data for the sprint, including GitHub metrics.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

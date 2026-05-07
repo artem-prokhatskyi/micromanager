@@ -11,9 +11,11 @@ import {
   workingDaysInRange,
 } from '@/lib/capacity';
 import { buildAccessibleTeamWhere, getCurrentUserOrNull } from '@/lib/auth';
+import { createEmptyGithubSprintMetrics, getGithubSprintMetricsByUsername } from '@/lib/github';
 import { prisma } from '@/lib/prisma';
 import { getTeamDetail, getTeamMembers } from '@/lib/data/team';
 import type {
+  GithubSprintMetrics,
   MemberCapacityData,
   NonWorkingDayRecord,
   SprintDashboardData,
@@ -28,6 +30,12 @@ interface CachedSprintIssuesPayload {
   externalIssues: JiraIssue[];
   sprintIssues: JiraIssue[];
 }
+
+interface CachedSprintGithubMetricsPayload {
+  metricsByUsername: Record<string, GithubSprintMetrics>;
+}
+
+const GITHUB_METRICS_CACHE_TTL_MS = 15 * 60 * 1000;
 
 async function getAccessibleTeamWhere(): Promise<Prisma.TeamWhereInput | null> {
   const currentUser = await getCurrentUserOrNull();
@@ -99,6 +107,50 @@ function readCachedSprintIssuesPayload(value: Prisma.JsonValue): CachedSprintIss
 }
 
 function toPrismaJsonValue(value: CachedSprintIssuesPayload): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function isGithubSprintMetrics(value: unknown): value is GithubSprintMetrics {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    (typeof candidate.averageCommentsPerPullRequest === 'number' || candidate.averageCommentsPerPullRequest === null)
+    && (typeof candidate.averageReviewTimeHours === 'number' || candidate.averageReviewTimeHours === null)
+    && typeof candidate.approvedPullRequests === 'number'
+    && typeof candidate.mergedPullRequests === 'number'
+    && typeof candidate.openedPullRequests === 'number'
+    && typeof candidate.submittedReviews === 'number'
+  );
+}
+
+function readCachedSprintGithubMetricsPayload(value: Prisma.JsonValue): CachedSprintGithubMetricsPayload {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { metricsByUsername: {} };
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const metricsRecord = candidate.metricsByUsername;
+
+  if (typeof metricsRecord !== 'object' || metricsRecord === null || Array.isArray(metricsRecord)) {
+    return { metricsByUsername: {} };
+  }
+
+  return {
+    metricsByUsername: Object.entries(metricsRecord).reduce<Record<string, GithubSprintMetrics>>((accumulator, [username, metrics]) => {
+      if (isGithubSprintMetrics(metrics)) {
+        accumulator[username] = metrics;
+      }
+
+      return accumulator;
+    }, {}),
+  };
+}
+
+function toGithubMetricsPrismaJsonValue(value: CachedSprintGithubMetricsPayload): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
@@ -232,7 +284,7 @@ export async function getSprintDashboardData(
   const sprintEndForActuals = actualEndDate(sprint);
   const memberIds = members.map((member) => member.id);
 
-  const [focusFactorOverrides, nonWorkingDays] = await Promise.all([
+  const [focusFactorOverrides, nonWorkingDays, githubMetricsCache] = await Promise.all([
     prisma.sprintFocusFactor.findMany({
       where: {
         sprintId,
@@ -262,7 +314,48 @@ export async function getSprintDashboardData(
         halfDay: true,
       },
     }),
+    prisma.sprintGithubMetricsCache.findUnique({
+      where: {
+        sprintId,
+      },
+      select: {
+        data: true,
+        fetchedAt: true,
+      },
+    }),
   ]);
+
+  const cachedGithubMetrics = githubMetricsCache
+    ? readCachedSprintGithubMetricsPayload(githubMetricsCache.data)
+    : null;
+  const canUseCachedGithubMetrics = Boolean(
+    cachedGithubMetrics
+    && githubMetricsCache
+    && (Date.now() - githubMetricsCache.fetchedAt.getTime()) < GITHUB_METRICS_CACHE_TTL_MS,
+  );
+  const githubMetricsResult = canUseCachedGithubMetrics && cachedGithubMetrics
+    ? {
+        available: true,
+        metricsByUsername: new Map<string, GithubSprintMetrics>(Object.entries(cachedGithubMetrics.metricsByUsername)),
+      }
+    : await getGithubSprintMetricsByUsername({
+        repositories: team.githubRepositories,
+        sprintEnd: sprintEndForActuals,
+        sprintStart: sprintStartForCapacity,
+        usernames: members.map((member) => member.githubUsername),
+      });
+
+  if (githubMetricsResult.available && (!canUseCachedGithubMetrics || !cachedGithubMetrics)) {
+    await upsertSprintGithubMetricsCache(sprintId, {
+      metricsByUsername: Object.fromEntries(githubMetricsResult.metricsByUsername.entries()),
+    });
+  }
+  const githubMetricsToUse = !githubMetricsResult.available && cachedGithubMetrics
+    ? {
+        available: true,
+        metricsByUsername: new Map<string, GithubSprintMetrics>(Object.entries(cachedGithubMetrics.metricsByUsername)),
+      }
+    : githubMetricsResult;
 
   const overridesByMemberId = new Map<string, number>(
     focusFactorOverrides.map((override) => [override.memberId, override.focusFactor]),
@@ -271,6 +364,7 @@ export async function getSprintDashboardData(
     ...record,
     date: record.date.toISOString(),
   }));
+  const emptyGithubMetrics: GithubSprintMetrics = createEmptyGithubSprintMetrics();
 
   const memberCapacityRows = members.map<MemberCapacityData>((member) => {
     const memberNonWorkingDays = normalizedNonWorkingDays.filter(
@@ -300,6 +394,7 @@ export async function getSprintDashboardData(
     const actualCapacity = actualWorkingDays === null
       ? null
       : calculateCapacity(actualWorkingDays, focusFactor);
+    const normalizedGithubUsername = member.githubUsername.trim().toLowerCase();
 
     return {
       memberId: member.id,
@@ -311,6 +406,9 @@ export async function getSprintDashboardData(
       actualWorkingDays,
       actualCapacity,
       absenceSummary: summarizeAbsencesByType(memberNonWorkingDays),
+      githubMetrics: githubMetricsToUse.available && normalizedGithubUsername
+        ? githubMetricsToUse.metricsByUsername.get(normalizedGithubUsername) ?? emptyGithubMetrics
+        : null,
     };
   });
 
@@ -458,4 +556,29 @@ export async function upsertSprintIssueCache(
   });
 
   return issueCache.fetchedAt;
+}
+
+export async function upsertSprintGithubMetricsCache(
+  sprintId: string,
+  data: CachedSprintGithubMetricsPayload,
+): Promise<Date> {
+  const githubMetricsCache = await prisma.sprintGithubMetricsCache.upsert({
+    where: {
+      sprintId,
+    },
+    create: {
+      sprintId,
+      data: toGithubMetricsPrismaJsonValue(data),
+      fetchedAt: new Date(),
+    },
+    update: {
+      data: toGithubMetricsPrismaJsonValue(data),
+      fetchedAt: new Date(),
+    },
+    select: {
+      fetchedAt: true,
+    },
+  });
+
+  return githubMetricsCache.fetchedAt;
 }

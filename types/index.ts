@@ -351,6 +351,15 @@ export interface AbsenceSummary {
   sickleave: number;
 }
 
+export interface GithubSprintMetrics {
+  averageReviewTimeHours: number | null;
+  averageCommentsPerPullRequest: number | null;
+  mergedPullRequests: number;
+  openedPullRequests: number;
+  approvedPullRequests: number;
+  submittedReviews: number;
+}
+
 export interface MemberCapacityData {
   memberId: string;
   name: string;
@@ -361,6 +370,7 @@ export interface MemberCapacityData {
   actualWorkingDays: number | null;
   actualCapacity: number | null;
   absenceSummary: AbsenceSummary;
+  githubMetrics: GithubSprintMetrics | null;
 }
 
 export interface SprintCapacityTotals {

@@ -22,6 +22,34 @@ function formatAbsenceSummary(member: MemberCapacityData): string {
   return `${member.absenceSummary.holiday} holiday · ${member.absenceSummary.vacation} vacation · ${member.absenceSummary.sickleave} sickleave`;
 }
 
+function formatReviewTime(hours: number | null): string {
+  if (hours === null) {
+    return '';
+  }
+
+  if (hours >= 24) {
+    return `Avg review ${(hours / 24).toFixed(1)}d`;
+  }
+
+  return `Avg review ${hours.toFixed(1)}h`;
+}
+
+function formatAverageComments(value: number | null): string {
+  if (value === null) {
+    return '';
+  }
+
+  return `Avg comments ${value.toFixed(1)}`;
+}
+
+function formatGithubMetrics(member: MemberCapacityData): string | null {
+  if (!member.githubMetrics) {
+    return null;
+  }
+
+  return `Github: ${member.githubMetrics.openedPullRequests} opened PR · ${member.githubMetrics.mergedPullRequests} merged PR · ${member.githubMetrics.submittedReviews} reviews · ${member.githubMetrics.approvedPullRequests} approvals · ${formatReviewTime(member.githubMetrics.averageReviewTimeHours)}`;
+}
+
 function ChevronIcon({ collapsed }: { collapsed: boolean }): ReactElement {
   return (
     <svg
@@ -77,6 +105,7 @@ export function DeveloperIssueTable({ group, member, showCapacitySummary = true,
   const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
   const unplannedIssues = group.issues.filter((issue) => issue.label === 'unplanned');
   const specializationLabels = formatSpecializationLabels(group.member.specialization);
+  const githubSummary = formatGithubMetrics(member);
 
   return (
     <Card>
@@ -111,7 +140,10 @@ export function DeveloperIssueTable({ group, member, showCapacitySummary = true,
             </p>
           ) : null}
         </div>
-        <p className="text-sm text-muted-foreground">{formatAbsenceSummary(member)}</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <p>{formatAbsenceSummary(member)}</p>
+          {githubSummary ? <p>{githubSummary}</p> : null}
+        </div>
       </CardHeader>
       {collapsed ? null : (
         <CardContent className="space-y-6">
