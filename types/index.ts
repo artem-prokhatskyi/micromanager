@@ -405,6 +405,7 @@ export interface ProcessedIssue {
   statusAtSprintEnd: string;
   priority: JiraIssuePriority['name'] | null;
   assigneeEmail: string;
+  testingTimeHours: number | null;
 }
 
 export interface DeveloperIssueGroup {

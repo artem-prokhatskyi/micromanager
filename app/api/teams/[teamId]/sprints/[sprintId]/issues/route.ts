@@ -9,7 +9,7 @@ import {
   processSprintIssues,
 } from '@/lib/issue-pipeline';
 import { getSprintIssuesContext, upsertSprintIssueCache } from '@/lib/data/sprint';
-import type { ApiResponse, DeveloperIssueGroup, JiraIssue, ProcessedIssue, SprintIssuesResponseData } from '@/types';
+import type { ApiResponse, DeveloperIssueGroup, JiraIssue, NonWorkingDayRecord, ProcessedIssue, SprintIssuesResponseData } from '@/types';
 
 interface SprintIssuesRouteProps {
   params: Promise<{
@@ -29,10 +29,16 @@ function toResponseData(input: {
   issues: JiraIssue[];
   jiraDomain: string;
   members: Parameters<typeof processSprintIssues>[2];
+  nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>;
   sprint: Parameters<typeof processSprintIssues>[1];
 }): SprintIssuesResponseData {
   const sprintGroups = processSprintIssues(input.issues, input.sprint, input.members);
-  const qaSprintGroups = processQaSprintIssues(input.issues, input.sprint, input.members);
+  const qaSprintGroups = processQaSprintIssues(
+    input.issues,
+    input.sprint,
+    input.members,
+    input.nonWorkingDaysByMemberId,
+  );
   const externalIssues = input.externalIssues ?? [];
 
   const mergeExternalIssues = (
@@ -80,6 +86,7 @@ function toResponseData(input: {
       externalIssues,
       input.sprint,
       input.members,
+      input.nonWorkingDaysByMemberId,
     );
     const qaMembers = input.members.filter((member) => member.specialization.includes('qa'));
 
@@ -172,11 +179,13 @@ export async function GET(
         issues: context.cache.sprintIssues,
         jiraDomain: context.team.jiraDomain,
         members: context.members,
+        nonWorkingDaysByMemberId: context.nonWorkingDaysByMemberId,
         sprint: {
           actualEnd: context.sprint.actualEnd,
           activatedAt: context.sprint.activatedAt,
           estimateInHours: context.team.estimateInHours,
           jiraDomain: context.team.jiraDomain,
+          plannedEnd: context.sprint.plannedEnd,
           plannedStart: context.sprint.plannedStart,
           sprintJiraId: context.sprint.jiraSprintId,
           sprintName: context.sprint.name,
@@ -198,6 +207,7 @@ export async function GET(
         estimateInHours: context.team.estimateInHours,
         jiraDomain: context.team.jiraDomain,
         plannedStart: context.sprint.plannedStart,
+        plannedEnd: context.sprint.plannedEnd,
         sprintJiraId: context.sprint.jiraSprintId,
         sprintName: context.sprint.name,
         storyPointsFieldId: context.storyPointsFieldId,
@@ -215,11 +225,13 @@ export async function GET(
       issues: freshIssues,
       jiraDomain: context.team.jiraDomain,
       members: context.members,
+      nonWorkingDaysByMemberId: context.nonWorkingDaysByMemberId,
       sprint: {
         actualEnd: context.sprint.actualEnd,
         activatedAt: context.sprint.activatedAt,
         estimateInHours: context.team.estimateInHours,
         jiraDomain: context.team.jiraDomain,
+        plannedEnd: context.sprint.plannedEnd,
         plannedStart: context.sprint.plannedStart,
         sprintJiraId: context.sprint.jiraSprintId,
         sprintName: context.sprint.name,
@@ -280,6 +292,7 @@ export async function POST(
         estimateInHours: context.team.estimateInHours,
         jiraDomain: context.team.jiraDomain,
         plannedStart: context.sprint.plannedStart,
+        plannedEnd: context.sprint.plannedEnd,
         sprintJiraId: context.sprint.jiraSprintId,
         sprintName: context.sprint.name,
         storyPointsFieldId: context.storyPointsFieldId,
@@ -297,11 +310,13 @@ export async function POST(
       issues: freshIssues,
       jiraDomain: context.team.jiraDomain,
       members: context.members,
+      nonWorkingDaysByMemberId: context.nonWorkingDaysByMemberId,
       sprint: {
         actualEnd: context.sprint.actualEnd,
         activatedAt: context.sprint.activatedAt,
         estimateInHours: context.team.estimateInHours,
         jiraDomain: context.team.jiraDomain,
+        plannedEnd: context.sprint.plannedEnd,
         plannedStart: context.sprint.plannedStart,
         sprintJiraId: context.sprint.jiraSprintId,
         sprintName: context.sprint.name,

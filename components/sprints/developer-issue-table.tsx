@@ -16,6 +16,8 @@ interface DeveloperIssueTableProps {
   member: MemberCapacityData;
   showCapacitySummary?: boolean;
   showStoryPoints?: boolean;
+  storyPointsLabel?: string;
+  showTestingTime?: boolean;
 }
 
 function formatAbsenceSummary(member: MemberCapacityData): string {
@@ -67,7 +69,7 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }): ReactElement {
   );
 }
 
-function IssueGroupTable({ issues, showStoryPoints = true, title }: { issues: ProcessedIssue[]; showStoryPoints?: boolean; title: string }): ReactElement {
+function IssueGroupTable({ issues, showStoryPoints = true, showTestingTime = false, storyPointsLabel = 'SP', title }: { issues: ProcessedIssue[]; showStoryPoints?: boolean; showTestingTime?: boolean; storyPointsLabel?: string; title: string }): ReactElement {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -80,14 +82,15 @@ function IssueGroupTable({ issues, showStoryPoints = true, title }: { issues: Pr
             <TableHead>Key</TableHead>
             <TableHead>Title</TableHead>
             <TableHead>Type</TableHead>
-            {showStoryPoints ? <TableHead>SP</TableHead> : null}
+            {showStoryPoints ? <TableHead>{storyPointsLabel}</TableHead> : null}
+            {showTestingTime ? <TableHead>Testing time</TableHead> : null}
             <TableHead>Priority</TableHead>
             <TableHead>Sprint status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {issues.map((issue) => (
-            <IssueTableRow issue={issue} key={issue.key} showStoryPoints={showStoryPoints} />
+            <IssueTableRow issue={issue} key={issue.key} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} />
           ))}
         </TableBody>
       </Table>
@@ -99,7 +102,7 @@ function formatSpecializationLabels(values: DeveloperIssueGroup['member']['speci
   return values.map((value) => SPECIALIZATION_SHORT_LABELS[value]);
 }
 
-export function DeveloperIssueTable({ group, member, showCapacitySummary = true, showStoryPoints = true }: DeveloperIssueTableProps): ReactElement {
+export function DeveloperIssueTable({ group, member, showCapacitySummary = true, showStoryPoints = true, storyPointsLabel = 'SP', showTestingTime = false }: DeveloperIssueTableProps): ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const externalInProgressIssues = group.externalInProgressIssues;
   const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
@@ -147,9 +150,9 @@ export function DeveloperIssueTable({ group, member, showCapacitySummary = true,
       </CardHeader>
       {collapsed ? null : (
         <CardContent className="space-y-6">
-          {plannedIssues.length > 0 ? <IssueGroupTable issues={plannedIssues} showStoryPoints={showStoryPoints} title="Planned issues" /> : null}
-          {unplannedIssues.length > 0 ? <IssueGroupTable issues={unplannedIssues} showStoryPoints={showStoryPoints} title="Unplanned issues" /> : null}
-          {externalInProgressIssues.length > 0 ? <IssueGroupTable issues={externalInProgressIssues} showStoryPoints={showStoryPoints} title="External in-progress issues" /> : null}
+          {plannedIssues.length > 0 ? <IssueGroupTable issues={plannedIssues} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} storyPointsLabel={storyPointsLabel} title="Planned issues" /> : null}
+          {unplannedIssues.length > 0 ? <IssueGroupTable issues={unplannedIssues} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} storyPointsLabel={storyPointsLabel} title="Unplanned issues" /> : null}
+          {externalInProgressIssues.length > 0 ? <IssueGroupTable issues={externalInProgressIssues} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} storyPointsLabel={storyPointsLabel} title="External in-progress issues" /> : null}
         </CardContent>
       )}
     </Card>

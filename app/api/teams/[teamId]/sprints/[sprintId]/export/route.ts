@@ -10,7 +10,7 @@ import {
   processSprintIssues,
 } from '@/lib/issue-pipeline';
 import { SPECIALIZATION_LABELS } from '@/types';
-import type { DeveloperIssueGroup, IssueGroupMember, JiraIssue, MemberCapacityData, ProcessedIssue } from '@/types';
+import type { DeveloperIssueGroup, JiraIssue, MemberCapacityData, ProcessedIssue } from '@/types';
 
 interface SprintExportRouteProps {
   params: Promise<{
@@ -171,17 +171,8 @@ function toIssueRow(issue: ProcessedIssue): string {
 }
 
 async function fetchExternalIssues(input: {
-  members: IssueGroupMember[];
-  sprint: {
-    actualEnd: Date | null;
-    activatedAt: Date | null;
-    estimateInHours: boolean;
-    jiraDomain: string;
-    plannedStart: Date;
-    sprintJiraId: number;
-    sprintName: string;
-    storyPointsFieldId: string;
-  };
+  members: Parameters<typeof processSprintIssues>[2];
+  sprint: Parameters<typeof processSprintIssues>[1];
   teamJiraSpace: string;
 }): Promise<JiraIssue[]> {
   try {
@@ -212,17 +203,8 @@ async function fetchExternalIssues(input: {
 function mergeExternalIssues(input: {
   externalIssues: JiraIssue[];
   groups: DeveloperIssueGroup[];
-  members: IssueGroupMember[];
-  sprint: {
-    actualEnd: Date | null;
-    activatedAt: Date | null;
-    estimateInHours: boolean;
-    jiraDomain: string;
-    plannedStart: Date;
-    sprintJiraId: number;
-    sprintName: string;
-    storyPointsFieldId: string;
-  };
+  members: Parameters<typeof processSprintIssues>[2];
+  sprint: Parameters<typeof processSprintIssues>[1];
 }): DeveloperIssueGroup[] {
   if (input.externalIssues.length === 0) {
     return input.groups;
@@ -302,6 +284,7 @@ export async function GET(
         activatedAt: issuesContext.sprint.activatedAt,
         estimateInHours: issuesContext.team.estimateInHours,
         jiraDomain: issuesContext.team.jiraDomain,
+        plannedEnd: issuesContext.sprint.plannedEnd,
         plannedStart: issuesContext.sprint.plannedStart,
         sprintJiraId: issuesContext.sprint.jiraSprintId,
         sprintName: issuesContext.sprint.name,
@@ -331,7 +314,12 @@ export async function GET(
       });
       qaIssueGroups = mergeExternalIssues({
         externalIssues,
-        groups: processQaSprintIssues(issues, sprintContext, issuesContext.members),
+        groups: processQaSprintIssues(
+          issues,
+          sprintContext,
+          issuesContext.members,
+          issuesContext.nonWorkingDaysByMemberId,
+        ),
         members: qaMembers,
         sprint: sprintContext,
       });
@@ -341,6 +329,7 @@ export async function GET(
           externalIssues,
           sprintContext,
           issuesContext.members,
+          issuesContext.nonWorkingDaysByMemberId,
         );
         const groupsByMemberId = new Map<string, DeveloperIssueGroup>(
           qaIssueGroups.map((group) => [group.member.id, group]),

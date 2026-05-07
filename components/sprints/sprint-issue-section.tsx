@@ -45,6 +45,7 @@ function isProcessedIssue(value: unknown): boolean {
     && typeof value.status === 'string'
     && typeof value.statusAtSprintStart === 'string'
     && typeof value.statusAtSprintEnd === 'string'
+    && (typeof value.testingTimeHours === 'number' || value.testingTimeHours === null)
     && typeof value.assigneeEmail === 'string';
 }
 
@@ -321,7 +322,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
               return null;
             }
 
-            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} showStoryPoints={false} />;
+            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} storyPointsLabel="Dev SP" showTestingTime />;
           })}
         </div>
       ) : null}

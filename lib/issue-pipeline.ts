@@ -1,10 +1,13 @@
-import { startOfUtcDay } from '@/lib/date';
+import { formatUtcDate, getTodayUtc, listUtcDaysInRange, startOfUtcDay } from '@/lib/date';
+import { WEEK_DAY } from '@/types';
 import type {
   DeveloperIssueGroup,
   IssueGroupMember,
   JiraIssue,
   JiraIssueHistory,
+  NonWorkingDayRecord,
   ProcessedIssue,
+  WeekDay,
 } from '@/types';
 
 interface IssuePipelineSprintContext {
@@ -12,19 +15,35 @@ interface IssuePipelineSprintContext {
   activatedAt: Date | null;
   estimateInHours: boolean;
   jiraDomain: string;
+  plannedEnd: Date;
   plannedStart: Date;
   sprintJiraId: number;
   sprintName: string;
   storyPointsFieldId: string;
 }
 
+interface IssuePipelineMember extends IssueGroupMember {
+  workingDays: WeekDay[];
+}
+
 interface MemberLookup {
-  memberById: Map<string, IssueGroupMember>;
-  membersByEmail: Map<string, IssueGroupMember>;
-  uniqueMembersByName: Map<string, IssueGroupMember>;
+  memberById: Map<string, IssuePipelineMember>;
+  membersByEmail: Map<string, IssuePipelineMember>;
+  uniqueMembersByName: Map<string, IssuePipelineMember>;
 }
 
 const QA_OWNER_FIELD_ID = 'customfield_11325';
+const QA_TESTING_WORK_START_HOUR = 9;
+const QA_TESTING_WORK_END_HOUR = 19;
+const WEEKDAY_MAP: Record<WeekDay, number> = {
+  [WEEK_DAY.SUN]: 0,
+  [WEEK_DAY.MON]: 1,
+  [WEEK_DAY.TUE]: 2,
+  [WEEK_DAY.WED]: 3,
+  [WEEK_DAY.THU]: 4,
+  [WEEK_DAY.FRI]: 5,
+  [WEEK_DAY.SAT]: 6,
+};
 
 const PRIORITY_ORDER: Record<string, number> = {
   'David Jackson': 0,
@@ -62,9 +81,9 @@ function normalizeAssigneeIdentifier(value: string | null | undefined): string |
   return normalized.length > 0 ? normalized : null;
 }
 
-function buildMemberLookup(members: IssueGroupMember[]): MemberLookup {
-  const membersByEmail = new Map<string, IssueGroupMember>();
-  const uniqueMembersByName = new Map<string, IssueGroupMember>();
+function buildMemberLookup(members: IssuePipelineMember[]): MemberLookup {
+  const membersByEmail = new Map<string, IssuePipelineMember>();
+  const uniqueMembersByName = new Map<string, IssuePipelineMember>();
   const duplicateMemberNames = new Set<string>();
 
   for (const member of members) {
@@ -92,17 +111,17 @@ function buildMemberLookup(members: IssueGroupMember[]): MemberLookup {
   }
 
   return {
-    memberById: new Map<string, IssueGroupMember>(members.map((member) => [member.id, member])),
+    memberById: new Map<string, IssuePipelineMember>(members.map((member) => [member.id, member])),
     membersByEmail,
     uniqueMembersByName,
   };
 }
 
-function getDeveloperMembers(members: IssueGroupMember[]): IssueGroupMember[] {
+function getDeveloperMembers(members: IssuePipelineMember[]): IssuePipelineMember[] {
   return members.filter((member) => !member.specialization.includes('qa'));
 }
 
-function findMemberForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssueGroupMember | null {
+function findMemberForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssuePipelineMember | null {
   const assigneeIdentifier = getLastAssigneeIdentifier(issue, histories);
 
   if (!assigneeIdentifier) {
@@ -182,12 +201,12 @@ function getLastQaIdentifiers(issue: JiraIssue, histories: JiraIssueHistory[]): 
   return parseUserFieldIdentifiers(issue.fields[QA_OWNER_FIELD_ID]);
 }
 
-function findQaMembersForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssueGroupMember[] {
+function findQaMembersForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssuePipelineMember[] {
   const identifiers = new Set<string>([
     ...getLastQaIdentifiers(issue, histories),
     ...normalizeIdentifiers([getLastAssigneeIdentifier(issue, histories)]),
   ]);
-  const members = new Map<string, IssueGroupMember>();
+  const members = new Map<string, IssuePipelineMember>();
 
   for (const identifier of identifiers) {
     const member = lookup.membersByEmail.get(identifier) ?? lookup.uniqueMembersByName.get(identifier);
@@ -333,6 +352,164 @@ function isQaTestingStatus(status: string): boolean {
   );
 }
 
+function getSprintWindow(sprint: IssuePipelineSprintContext): { end: Date; start: Date } {
+  const sprintStart = startOfUtcDay(sprint.activatedAt ?? sprint.plannedStart);
+  const plannedEnd = startOfUtcDay(sprint.plannedEnd);
+  const today = getTodayUtc();
+
+  let sprintEndDay = plannedEnd;
+
+  if (sprint.actualEnd && startOfUtcDay(sprint.actualEnd).getTime() > plannedEnd.getTime()) {
+    sprintEndDay = startOfUtcDay(sprint.actualEnd);
+  } else if (!sprint.actualEnd && today.getTime() > plannedEnd.getTime()) {
+    sprintEndDay = today;
+  }
+
+  return {
+    start: sprintStart,
+    end: new Date(Date.UTC(
+      sprintEndDay.getUTCFullYear(),
+      sprintEndDay.getUTCMonth(),
+      sprintEndDay.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    )),
+  };
+}
+
+function buildNonWorkingDayAmountByDate(nonWorkingDays: NonWorkingDayRecord[]): Map<string, number> {
+  return nonWorkingDays.reduce<Map<string, number>>((accumulator, record) => {
+    const currentAmount = accumulator.get(record.date) ?? 0;
+
+    accumulator.set(record.date, Math.min(1, currentAmount + (record.halfDay ? 0.5 : 1)));
+
+    return accumulator;
+  }, new Map<string, number>());
+}
+
+function calculateWorkingQaDurationMs(
+  start: Date,
+  end: Date,
+  member: IssuePipelineMember,
+  nonWorkingDays: NonWorkingDayRecord[],
+): number {
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
+    return 0;
+  }
+
+  const workingDayNumbers = new Set<number>(member.workingDays.map((day) => WEEKDAY_MAP[day]));
+
+  if (workingDayNumbers.size === 0) {
+    return 0;
+  }
+
+  const nonWorkingDayAmountByDate = buildNonWorkingDayAmountByDate(nonWorkingDays);
+
+  return listUtcDaysInRange(start, end).reduce((total, day) => {
+    if (!workingDayNumbers.has(day.getUTCDay())) {
+      return total;
+    }
+
+    const availabilityFactor = 1 - (nonWorkingDayAmountByDate.get(formatUtcDate(day)) ?? 0);
+
+    if (availabilityFactor <= 0) {
+      return total;
+    }
+
+    const workDayStartMs = Date.UTC(
+      day.getUTCFullYear(),
+      day.getUTCMonth(),
+      day.getUTCDate(),
+      QA_TESTING_WORK_START_HOUR,
+      0,
+      0,
+      0,
+    );
+    const workDayEndMs = Date.UTC(
+      day.getUTCFullYear(),
+      day.getUTCMonth(),
+      day.getUTCDate(),
+      QA_TESTING_WORK_END_HOUR,
+      0,
+      0,
+      0,
+    );
+    const intervalStartMs = Math.max(startMs, workDayStartMs);
+    const intervalEndMs = Math.min(endMs, workDayEndMs);
+
+    if (intervalEndMs <= intervalStartMs) {
+      return total;
+    }
+
+    return total + ((intervalEndMs - intervalStartMs) * availabilityFactor);
+  }, 0);
+}
+
+function calculateQaTestingTimeHours(
+  issue: JiraIssue,
+  histories: JiraIssueHistory[],
+  sprint: IssuePipelineSprintContext,
+  member: IssuePipelineMember,
+  nonWorkingDays: NonWorkingDayRecord[],
+): number | null {
+  const issueCreatedAt = parseIssueCreatedAt(issue);
+
+  if (!issueCreatedAt) {
+    return null;
+  }
+
+  const sprintWindow = getSprintWindow(sprint);
+
+  if (sprintWindow.end.getTime() <= sprintWindow.start.getTime() || issueCreatedAt.getTime() > sprintWindow.end.getTime()) {
+    return null;
+  }
+
+  const effectiveStart = new Date(Math.max(issueCreatedAt.getTime(), sprintWindow.start.getTime()));
+  let currentStatus = getStatusAtDate(issue, histories, effectiveStart);
+  let currentIntervalStart = effectiveStart;
+  let totalDurationMs = 0;
+
+  for (const history of histories) {
+    const statusItem = history.items.find((item) => item.field === 'status');
+
+    if (!statusItem) {
+      continue;
+    }
+
+    const changedAt = new Date(history.created);
+
+    if (Number.isNaN(changedAt.getTime()) || changedAt.getTime() <= effectiveStart.getTime()) {
+      continue;
+    }
+
+    if (changedAt.getTime() > sprintWindow.end.getTime()) {
+      break;
+    }
+
+    if (isQaTestingStatus(currentStatus)) {
+      totalDurationMs += calculateWorkingQaDurationMs(currentIntervalStart, changedAt, member, nonWorkingDays);
+    }
+
+    currentStatus = statusItem.toString ?? currentStatus;
+    currentIntervalStart = changedAt;
+  }
+
+  if (isQaTestingStatus(currentStatus) && sprintWindow.end.getTime() > currentIntervalStart.getTime()) {
+    totalDurationMs += calculateWorkingQaDurationMs(currentIntervalStart, sprintWindow.end, member, nonWorkingDays);
+  }
+
+  if (totalDurationMs <= 0) {
+    return null;
+  }
+
+  return Math.round((totalDurationMs / (1000 * 60 * 60)) * 10) / 10;
+}
+
 function fallsWithinSprintWindow(date: Date, sprint: IssuePipelineSprintContext): boolean {
   const sprintStart = startOfUtcDay(sprint.activatedAt ?? sprint.plannedStart).getTime();
   const sprintEnd = startOfUtcDay(sprint.actualEnd ?? new Date()).getTime();
@@ -397,6 +574,7 @@ function toProcessedIssue(
   assigneeEmail: string,
   label: ProcessedIssue['label'],
   histories?: JiraIssueHistory[],
+  testingTimeHours: number | null = null,
 ): ProcessedIssue | null {
   const allHistories = sortHistoriesAscending(issue.changelog.histories);
   const filteredHistories = histories ?? sortHistoriesAscending(
@@ -427,13 +605,14 @@ function toProcessedIssue(
     statusAtSprintEnd,
     priority: issue.fields.priority?.name ?? null,
     assigneeEmail,
+    testingTimeHours,
   };
 }
 
 export function processSprintIssues(
   issues: JiraIssue[],
   sprint: IssuePipelineSprintContext,
-  members: IssueGroupMember[],
+  members: IssuePipelineMember[],
 ): DeveloperIssueGroup[] {
   const developerMembers = getDeveloperMembers(members);
 
@@ -512,7 +691,7 @@ export function processSprintIssues(
 export function processExternalInProgressIssues(
   issues: JiraIssue[],
   sprint: IssuePipelineSprintContext,
-  members: IssueGroupMember[],
+  members: IssuePipelineMember[],
 ): Map<string, ProcessedIssue[]> {
   const developerMembers = getDeveloperMembers(members);
   const lookup = buildMemberLookup(developerMembers);
@@ -564,7 +743,8 @@ export function processExternalInProgressIssues(
 export function processQaSprintIssues(
   issues: JiraIssue[],
   sprint: IssuePipelineSprintContext,
-  members: IssueGroupMember[],
+  members: IssuePipelineMember[],
+  nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>,
 ): DeveloperIssueGroup[] {
   const qaMembers = members.filter((member) => member.specialization.includes('qa'));
 
@@ -576,8 +756,9 @@ export function processQaSprintIssues(
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
   for (const issue of issues) {
+    const allHistories = sortHistoriesAscending(issue.changelog.histories);
     const filteredHistories = sortHistoriesAscending(
-      filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
+      filterHistoriesForSprint(allHistories, sprint.actualEnd),
     );
     const matchedMembers = findQaMembersForIssue(issue, filteredHistories, lookup);
 
@@ -586,6 +767,13 @@ export function processQaSprintIssues(
     }
 
     for (const member of matchedMembers) {
+      const testingTimeHours = calculateQaTestingTimeHours(
+        issue,
+        allHistories,
+        sprint,
+        member,
+        nonWorkingDaysByMemberId[member.id] ?? [],
+      );
       const processedIssue = toProcessedIssue(
         issue,
         sprint,
@@ -598,6 +786,7 @@ export function processQaSprintIssues(
           sprint.sprintName,
         ),
         filteredHistories,
+        testingTimeHours,
       );
 
       if (!processedIssue) {
@@ -635,7 +824,8 @@ export function processQaSprintIssues(
 export function processQaExternalInProgressIssues(
   issues: JiraIssue[],
   sprint: IssuePipelineSprintContext,
-  members: IssueGroupMember[],
+  members: IssuePipelineMember[],
+  nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>,
 ): Map<string, ProcessedIssue[]> {
   const qaMembers = members.filter((member) => member.specialization.includes('qa'));
 
@@ -655,12 +845,20 @@ export function processQaExternalInProgressIssues(
     }
 
     for (const member of matchedMembers) {
+      const testingTimeHours = calculateQaTestingTimeHours(
+        issue,
+        filteredHistories,
+        sprint,
+        member,
+        nonWorkingDaysByMemberId[member.id] ?? [],
+      );
       const processedIssue = toProcessedIssue(
         issue,
         sprint,
         member.jiraEmail,
         'external',
         filteredHistories,
+        testingTimeHours,
       );
 
       if (!processedIssue) {

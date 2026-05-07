@@ -7,6 +7,19 @@ import type { ProcessedIssue } from '@/types';
 interface IssueTableRowProps {
   issue: ProcessedIssue;
   showStoryPoints?: boolean;
+  showTestingTime?: boolean;
+}
+
+function formatTestingTime(hours: number | null): string {
+  if (hours === null) {
+    return '—';
+  }
+
+  if (hours >= 24) {
+    return `${(hours / 24).toFixed(1)}d`;
+  }
+
+  return `${hours.toFixed(1)}h`;
 }
 
 function getStatusBadgeClassName(status: string): string {
@@ -91,7 +104,7 @@ function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priorit
   }
 }
 
-export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowProps): ReactElement {
+export function IssueTableRow({ issue, showStoryPoints = true, showTestingTime = false }: IssueTableRowProps): ReactElement {
   const badgeClassName = issue.label === 'planned'
     ? undefined
     : issue.label === 'unplanned'
@@ -118,6 +131,7 @@ export function IssueTableRow({ issue, showStoryPoints = true }: IssueTableRowPr
       </TableCell>
       <TableCell className="text-foreground text-nowrap text-xs">{issue.issueType ?? '—'}</TableCell>
       {showStoryPoints ? <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell> : null}
+      {showTestingTime ? <TableCell className="text-foreground text-nowrap">{formatTestingTime(issue.testingTimeHours)}</TableCell> : null}
       <TableCell>
         {issue.priority ? (
           <Badge className={priorityBadgeClassName ?? undefined} variant="outline">{issue.priority}</Badge>

@@ -24,7 +24,12 @@ import type {
   SprintListItem,
   SprintOption,
   SprintRecord,
+  WeekDay,
 } from '@/types';
+
+export interface SprintIssueMember extends IssueGroupMember {
+  workingDays: WeekDay[];
+}
 
 interface CachedSprintIssuesPayload {
   externalIssues: JiraIssue[];
@@ -438,7 +443,8 @@ export interface SprintIssuesContext {
     sprintIssues: JiraIssue[];
     fetchedAt: Date;
   } | null;
-  members: IssueGroupMember[];
+  members: SprintIssueMember[];
+  nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>;
   sprint: SprintListItem;
   storyPointsFieldId: string;
   team: {
@@ -509,6 +515,42 @@ export async function getSprintIssuesContext(
     return null;
   }
 
+  const memberIds = members.map((member) => member.id);
+  const sprintStartForIssueWindow = actualStartDate(sprint);
+  const sprintEndForIssueWindow = actualEndDate(sprint);
+  const nonWorkingDays = await prisma.nonWorkingDay.findMany({
+    where: {
+      teamId,
+      memberId: {
+        in: memberIds,
+      },
+      date: {
+        gte: sprintStartForIssueWindow,
+        lte: sprintEndForIssueWindow,
+      },
+    },
+    select: {
+      id: true,
+      memberId: true,
+      teamId: true,
+      date: true,
+      type: true,
+      halfDay: true,
+    },
+  });
+
+  const normalizedNonWorkingDays: NonWorkingDayRecord[] = nonWorkingDays.map((record) => ({
+    ...record,
+    date: record.date.toISOString(),
+  }));
+  const nonWorkingDaysByMemberId = normalizedNonWorkingDays.reduce<Record<string, NonWorkingDayRecord[]>>((accumulator, record) => {
+    const memberRecords = accumulator[record.memberId] ?? [];
+    memberRecords.push(record);
+    accumulator[record.memberId] = memberRecords;
+
+    return accumulator;
+  }, {});
+
   return {
     cache: sprint.issueCache
       ? {
@@ -521,7 +563,9 @@ export async function getSprintIssuesContext(
       jiraEmail: member.jiraEmail,
       name: member.name,
       specialization: member.specialization,
+      workingDays: member.workingDays,
     })),
+    nonWorkingDaysByMemberId,
     sprint: toSprintListItem(sprint),
     storyPointsFieldId: settings.storyPointsFieldId || 'story_points',
     team: {
