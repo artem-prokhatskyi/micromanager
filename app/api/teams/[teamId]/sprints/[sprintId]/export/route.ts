@@ -10,7 +10,7 @@ import {
   processSprintIssues,
 } from '@/lib/issue-pipeline';
 import { SPECIALIZATION_LABELS } from '@/types';
-import type { DeveloperIssueGroup, JiraIssue, MemberCapacityData, ProcessedIssue } from '@/types';
+import type { DeveloperIssueGroup, JiraIssue, MemberCapacityData, NonWorkingDayRecord, ProcessedIssue } from '@/types';
 
 interface SprintExportRouteProps {
   params: Promise<{
@@ -204,6 +204,7 @@ function mergeExternalIssues(input: {
   externalIssues: JiraIssue[];
   groups: DeveloperIssueGroup[];
   members: Parameters<typeof processSprintIssues>[2];
+  nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>;
   sprint: Parameters<typeof processSprintIssues>[1];
 }): DeveloperIssueGroup[] {
   if (input.externalIssues.length === 0) {
@@ -214,6 +215,7 @@ function mergeExternalIssues(input: {
     input.externalIssues,
     input.sprint,
     input.members,
+    input.nonWorkingDaysByMemberId,
   );
   const groupsByMemberId = new Map<string, DeveloperIssueGroup>(
     input.groups.map((group) => [group.member.id, group]),
@@ -308,8 +310,14 @@ export async function GET(
       const qaMembers = issuesContext.members.filter((member) => member.specialization.includes('qa'));
       issueGroups = mergeExternalIssues({
         externalIssues,
-        groups: processSprintIssues(issues, sprintContext, issuesContext.members),
+        groups: processSprintIssues(
+          issues,
+          sprintContext,
+          issuesContext.members,
+          issuesContext.nonWorkingDaysByMemberId,
+        ),
         members: issuesContext.members,
+        nonWorkingDaysByMemberId: issuesContext.nonWorkingDaysByMemberId,
         sprint: sprintContext,
       });
       qaIssueGroups = mergeExternalIssues({
@@ -321,6 +329,7 @@ export async function GET(
           issuesContext.nonWorkingDaysByMemberId,
         ),
         members: qaMembers,
+        nonWorkingDaysByMemberId: issuesContext.nonWorkingDaysByMemberId,
         sprint: sprintContext,
       });
 

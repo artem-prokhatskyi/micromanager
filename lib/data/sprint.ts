@@ -40,8 +40,6 @@ interface CachedSprintGithubMetricsPayload {
   metricsByUsername: Record<string, GithubSprintMetrics>;
 }
 
-const GITHUB_METRICS_CACHE_TTL_MS = 15 * 60 * 1000;
-
 async function getAccessibleTeamWhere(): Promise<Prisma.TeamWhereInput | null> {
   const currentUser = await getCurrentUserOrNull();
 
@@ -333,12 +331,8 @@ export async function getSprintDashboardData(
   const cachedGithubMetrics = githubMetricsCache
     ? readCachedSprintGithubMetricsPayload(githubMetricsCache.data)
     : null;
-  const canUseCachedGithubMetrics = Boolean(
-    cachedGithubMetrics
-    && githubMetricsCache
-    && (Date.now() - githubMetricsCache.fetchedAt.getTime()) < GITHUB_METRICS_CACHE_TTL_MS,
-  );
-  const githubMetricsResult = canUseCachedGithubMetrics && cachedGithubMetrics
+  const hasCachedGithubMetrics = Boolean(cachedGithubMetrics && githubMetricsCache);
+  const githubMetricsResult = hasCachedGithubMetrics && cachedGithubMetrics
     ? {
         available: true,
         metricsByUsername: new Map<string, GithubSprintMetrics>(Object.entries(cachedGithubMetrics.metricsByUsername)),
@@ -350,7 +344,7 @@ export async function getSprintDashboardData(
         usernames: members.map((member) => member.githubUsername),
       });
 
-  if (githubMetricsResult.available && (!canUseCachedGithubMetrics || !cachedGithubMetrics)) {
+  if (githubMetricsResult.available && !hasCachedGithubMetrics) {
     await upsertSprintGithubMetricsCache(sprintId, {
       metricsByUsername: Object.fromEntries(githubMetricsResult.metricsByUsername.entries()),
     });
@@ -516,17 +510,11 @@ export async function getSprintIssuesContext(
   }
 
   const memberIds = members.map((member) => member.id);
-  const sprintStartForIssueWindow = actualStartDate(sprint);
-  const sprintEndForIssueWindow = actualEndDate(sprint);
   const nonWorkingDays = await prisma.nonWorkingDay.findMany({
     where: {
       teamId,
       memberId: {
         in: memberIds,
-      },
-      date: {
-        gte: sprintStartForIssueWindow,
-        lte: sprintEndForIssueWindow,
       },
     },
     select: {

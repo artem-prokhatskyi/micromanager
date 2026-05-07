@@ -45,6 +45,10 @@ function isProcessedIssue(value: unknown): boolean {
     && typeof value.status === 'string'
     && typeof value.statusAtSprintStart === 'string'
     && typeof value.statusAtSprintEnd === 'string'
+    && (typeof value.devTimeHours === 'number' || value.devTimeHours === null)
+    && (typeof value.totalDevTimeHours === 'number' || value.totalDevTimeHours === null)
+    && (typeof value.totalQaTimeHours === 'number' || value.totalQaTimeHours === null)
+    && (typeof value.devQaRatio === 'number' || value.devQaRatio === null)
     && (typeof value.testingTimeHours === 'number' || value.testingTimeHours === null)
     && typeof value.assigneeEmail === 'string';
 }
@@ -305,7 +309,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
               return null;
             }
 
-            return <DeveloperIssueTable group={group} key={group.member.id} member={member} />;
+            return <DeveloperIssueTable group={group} key={group.member.id} member={member} showDevQaRatio showDevTime showTestingTime showTotalDevTime showTotalQaTime />;
           })
         : null}
 
@@ -322,7 +326,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
               return null;
             }
 
-            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} storyPointsLabel="Dev SP" showTestingTime />;
+            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} showDevQaRatio showDevTime showTestingTime showTotalDevTime showTotalQaTime storyPointsLabel="Dev SP" />;
           })}
         </div>
       ) : null}

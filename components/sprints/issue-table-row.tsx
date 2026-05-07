@@ -6,11 +6,15 @@ import type { ProcessedIssue } from '@/types';
 
 interface IssueTableRowProps {
   issue: ProcessedIssue;
+  showDevQaRatio?: boolean;
+  showDevTime?: boolean;
   showStoryPoints?: boolean;
   showTestingTime?: boolean;
+  showTotalDevTime?: boolean;
+  showTotalQaTime?: boolean;
 }
 
-function formatTestingTime(hours: number | null): string {
+function formatDurationTime(hours: number | null): string {
   if (hours === null) {
     return '—';
   }
@@ -20,6 +24,14 @@ function formatTestingTime(hours: number | null): string {
   }
 
   return `${hours.toFixed(1)}h`;
+}
+
+function formatDevQaRatio(value: number | null): string {
+  if (value === null) {
+    return '—';
+  }
+
+  return value.toFixed(2);
 }
 
 function getStatusBadgeClassName(status: string): string {
@@ -104,7 +116,7 @@ function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priorit
   }
 }
 
-export function IssueTableRow({ issue, showStoryPoints = true, showTestingTime = false }: IssueTableRowProps): ReactElement {
+export function IssueTableRow({ issue, showDevQaRatio = false, showDevTime = false, showStoryPoints = true, showTestingTime = false, showTotalDevTime = false, showTotalQaTime = false }: IssueTableRowProps): ReactElement {
   const badgeClassName = issue.label === 'planned'
     ? undefined
     : issue.label === 'unplanned'
@@ -131,7 +143,11 @@ export function IssueTableRow({ issue, showStoryPoints = true, showTestingTime =
       </TableCell>
       <TableCell className="text-foreground text-nowrap text-xs">{issue.issueType ?? '—'}</TableCell>
       {showStoryPoints ? <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell> : null}
-      {showTestingTime ? <TableCell className="text-foreground text-nowrap">{formatTestingTime(issue.testingTimeHours)}</TableCell> : null}
+      {showDevTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.devTimeHours)}</TableCell> : null}
+      {showTestingTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.testingTimeHours)}</TableCell> : null}
+      {showTotalDevTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.totalDevTimeHours)}</TableCell> : null}
+      {showTotalQaTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.totalQaTimeHours)}</TableCell> : null}
+      {showDevQaRatio ? <TableCell className="text-foreground text-nowrap">{formatDevQaRatio(issue.devQaRatio)}</TableCell> : null}
       <TableCell>
         {issue.priority ? (
           <Badge className={priorityBadgeClassName ?? undefined} variant="outline">{issue.priority}</Badge>

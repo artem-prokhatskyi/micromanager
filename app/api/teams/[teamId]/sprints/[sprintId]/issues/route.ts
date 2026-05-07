@@ -32,7 +32,12 @@ function toResponseData(input: {
   nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>;
   sprint: Parameters<typeof processSprintIssues>[1];
 }): SprintIssuesResponseData {
-  const sprintGroups = processSprintIssues(input.issues, input.sprint, input.members);
+  const sprintGroups = processSprintIssues(
+    input.issues,
+    input.sprint,
+    input.members,
+    input.nonWorkingDaysByMemberId,
+  );
   const qaSprintGroups = processQaSprintIssues(
     input.issues,
     input.sprint,
@@ -81,6 +86,7 @@ function toResponseData(input: {
       externalIssues,
       input.sprint,
       input.members,
+      input.nonWorkingDaysByMemberId,
     );
     const groupedQaExternalIssues = processQaExternalInProgressIssues(
       externalIssues,

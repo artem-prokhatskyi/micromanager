@@ -405,6 +405,10 @@ export interface ProcessedIssue {
   statusAtSprintEnd: string;
   priority: JiraIssuePriority['name'] | null;
   assigneeEmail: string;
+  devTimeHours: number | null;
+  totalDevTimeHours: number | null;
+  totalQaTimeHours: number | null;
+  devQaRatio: number | null;
   testingTimeHours: number | null;
 }
 

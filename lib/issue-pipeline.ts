@@ -379,6 +379,19 @@ function getSprintWindow(sprint: IssuePipelineSprintContext): { end: Date; start
   };
 }
 
+function getTotalIssueWindow(issue: JiraIssue): { end: Date; start: Date } | null {
+  const issueCreatedAt = parseIssueCreatedAt(issue);
+
+  if (!issueCreatedAt) {
+    return null;
+  }
+
+  return {
+    start: issueCreatedAt,
+    end: new Date(),
+  };
+}
+
 function buildNonWorkingDayAmountByDate(nonWorkingDays: NonWorkingDayRecord[]): Map<string, number> {
   return nonWorkingDays.reduce<Map<string, number>>((accumulator, record) => {
     const currentAmount = accumulator.get(record.date) ?? 0;
@@ -389,7 +402,7 @@ function buildNonWorkingDayAmountByDate(nonWorkingDays: NonWorkingDayRecord[]): 
   }, new Map<string, number>());
 }
 
-function calculateWorkingQaDurationMs(
+function calculateWorkingStatusDurationMs(
   start: Date,
   end: Date,
   member: IssuePipelineMember,
@@ -450,26 +463,23 @@ function calculateWorkingQaDurationMs(
   }, 0);
 }
 
-function calculateQaTestingTimeHours(
+function calculateStatusTimeHours(
   issue: JiraIssue,
   histories: JiraIssueHistory[],
-  sprint: IssuePipelineSprintContext,
   member: IssuePipelineMember,
   nonWorkingDays: NonWorkingDayRecord[],
+  matcher: (status: string) => boolean,
+  window: { end: Date; start: Date } | null,
 ): number | null {
-  const issueCreatedAt = parseIssueCreatedAt(issue);
-
-  if (!issueCreatedAt) {
+  if (!window) {
     return null;
   }
 
-  const sprintWindow = getSprintWindow(sprint);
-
-  if (sprintWindow.end.getTime() <= sprintWindow.start.getTime() || issueCreatedAt.getTime() > sprintWindow.end.getTime()) {
+  if (window.end.getTime() <= window.start.getTime()) {
     return null;
   }
 
-  const effectiveStart = new Date(Math.max(issueCreatedAt.getTime(), sprintWindow.start.getTime()));
+  const effectiveStart = window.start;
   let currentStatus = getStatusAtDate(issue, histories, effectiveStart);
   let currentIntervalStart = effectiveStart;
   let totalDurationMs = 0;
@@ -487,20 +497,20 @@ function calculateQaTestingTimeHours(
       continue;
     }
 
-    if (changedAt.getTime() > sprintWindow.end.getTime()) {
+    if (changedAt.getTime() > window.end.getTime()) {
       break;
     }
 
-    if (isQaTestingStatus(currentStatus)) {
-      totalDurationMs += calculateWorkingQaDurationMs(currentIntervalStart, changedAt, member, nonWorkingDays);
+    if (matcher(currentStatus)) {
+      totalDurationMs += calculateWorkingStatusDurationMs(currentIntervalStart, changedAt, member, nonWorkingDays);
     }
 
     currentStatus = statusItem.toString ?? currentStatus;
     currentIntervalStart = changedAt;
   }
 
-  if (isQaTestingStatus(currentStatus) && sprintWindow.end.getTime() > currentIntervalStart.getTime()) {
-    totalDurationMs += calculateWorkingQaDurationMs(currentIntervalStart, sprintWindow.end, member, nonWorkingDays);
+  if (matcher(currentStatus) && window.end.getTime() > currentIntervalStart.getTime()) {
+    totalDurationMs += calculateWorkingStatusDurationMs(currentIntervalStart, window.end, member, nonWorkingDays);
   }
 
   if (totalDurationMs <= 0) {
@@ -508,6 +518,80 @@ function calculateQaTestingTimeHours(
   }
 
   return Math.round((totalDurationMs / (1000 * 60 * 60)) * 10) / 10;
+}
+
+function calculateQaTestingTimeHours(
+  issue: JiraIssue,
+  histories: JiraIssueHistory[],
+  sprint: IssuePipelineSprintContext,
+  member: IssuePipelineMember,
+  nonWorkingDays: NonWorkingDayRecord[],
+): number | null {
+  return calculateStatusTimeHours(
+    issue,
+    histories,
+    member,
+    nonWorkingDays,
+    isQaTestingStatus,
+    getSprintWindow(sprint),
+  );
+}
+
+function calculateDevTimeHours(
+  issue: JiraIssue,
+  histories: JiraIssueHistory[],
+  sprint: IssuePipelineSprintContext,
+  member: IssuePipelineMember,
+  nonWorkingDays: NonWorkingDayRecord[],
+): number | null {
+  return calculateStatusTimeHours(
+    issue,
+    histories,
+    member,
+    nonWorkingDays,
+    isInProgressStatus,
+    getSprintWindow(sprint),
+  );
+}
+
+function calculateTotalQaTimeHours(
+  issue: JiraIssue,
+  histories: JiraIssueHistory[],
+  member: IssuePipelineMember,
+  nonWorkingDays: NonWorkingDayRecord[],
+): number | null {
+  return calculateStatusTimeHours(
+    issue,
+    histories,
+    member,
+    nonWorkingDays,
+    isQaTestingStatus,
+    getTotalIssueWindow(issue),
+  );
+}
+
+function calculateTotalDevTimeHours(
+  issue: JiraIssue,
+  histories: JiraIssueHistory[],
+  member: IssuePipelineMember,
+  nonWorkingDays: NonWorkingDayRecord[],
+): number | null {
+  return calculateStatusTimeHours(
+    issue,
+    histories,
+    member,
+    nonWorkingDays,
+    isInProgressStatus,
+    getTotalIssueWindow(issue),
+  );
+}
+
+function calculateDevQaRatio(totalDevTimeHours: number | null, totalQaTimeHours: number | null): number | null {
+  if (totalDevTimeHours === null || totalQaTimeHours === null || totalQaTimeHours <= 0) {
+    return null;
+  }
+
+  return Math.round((totalDevTimeHours / totalQaTimeHours) * 100) / 100;
 }
 
 function fallsWithinSprintWindow(date: Date, sprint: IssuePipelineSprintContext): boolean {
@@ -574,6 +658,9 @@ function toProcessedIssue(
   assigneeEmail: string,
   label: ProcessedIssue['label'],
   histories?: JiraIssueHistory[],
+  devTimeHours: number | null = null,
+  totalDevTimeHours: number | null = null,
+  totalQaTimeHours: number | null = null,
   testingTimeHours: number | null = null,
 ): ProcessedIssue | null {
   const allHistories = sortHistoriesAscending(issue.changelog.histories);
@@ -605,6 +692,10 @@ function toProcessedIssue(
     statusAtSprintEnd,
     priority: issue.fields.priority?.name ?? null,
     assigneeEmail,
+    devTimeHours,
+    totalDevTimeHours,
+    totalQaTimeHours,
+    devQaRatio: calculateDevQaRatio(totalDevTimeHours, totalQaTimeHours),
     testingTimeHours,
   };
 }
@@ -613,6 +704,7 @@ export function processSprintIssues(
   issues: JiraIssue[],
   sprint: IssuePipelineSprintContext,
   members: IssuePipelineMember[],
+  nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>,
 ): DeveloperIssueGroup[] {
   const developerMembers = getDeveloperMembers(members);
 
@@ -631,14 +723,39 @@ export function processSprintIssues(
       continue;
     }
 
+    const allHistories = sortHistoriesAscending(issue.changelog.histories);
     const filteredHistories = sortHistoriesAscending(
-      filterHistoriesForSprint(issue.changelog.histories, sprint.actualEnd),
+      filterHistoriesForSprint(allHistories, sprint.actualEnd),
     );
     const member = findMemberForIssue(issue, filteredHistories, lookup);
 
     if (!member) {
       continue;
     }
+
+    const devTimeHours = calculateDevTimeHours(
+      issue,
+      allHistories,
+      sprint,
+      member,
+      nonWorkingDaysByMemberId[member.id] ?? [],
+    );
+    const totalDevTimeHours = calculateTotalDevTimeHours(
+      issue,
+      allHistories,
+      member,
+      nonWorkingDaysByMemberId[member.id] ?? [],
+    );
+    const qaLookup = buildMemberLookup(members.filter((candidate) => candidate.specialization.includes('qa')));
+    const qaMember = findQaMembersForIssue(issue, allHistories, qaLookup)[0] ?? null;
+    const totalQaTimeHours = qaMember
+      ? calculateTotalQaTimeHours(
+          issue,
+          allHistories,
+          qaMember,
+          nonWorkingDaysByMemberId[qaMember.id] ?? [],
+        )
+      : null;
 
     const processedIssue = toProcessedIssue(
       issue,
@@ -652,6 +769,9 @@ export function processSprintIssues(
         sprint.sprintName,
       ),
       filteredHistories,
+      devTimeHours,
+      totalDevTimeHours,
+      totalQaTimeHours,
     );
 
     if (!processedIssue) {
@@ -692,9 +812,11 @@ export function processExternalInProgressIssues(
   issues: JiraIssue[],
   sprint: IssuePipelineSprintContext,
   members: IssuePipelineMember[],
+  nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>,
 ): Map<string, ProcessedIssue[]> {
   const developerMembers = getDeveloperMembers(members);
   const lookup = buildMemberLookup(developerMembers);
+  const qaLookup = buildMemberLookup(members.filter((member) => member.specialization.includes('qa')));
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
   for (const issue of issues) {
@@ -709,12 +831,38 @@ export function processExternalInProgressIssues(
       continue;
     }
 
+    const devTimeHours = calculateDevTimeHours(
+      issue,
+      filteredHistories,
+      sprint,
+      member,
+      nonWorkingDaysByMemberId[member.id] ?? [],
+    );
+    const totalDevTimeHours = calculateTotalDevTimeHours(
+      issue,
+      filteredHistories,
+      member,
+      nonWorkingDaysByMemberId[member.id] ?? [],
+    );
+    const qaMember = findQaMembersForIssue(issue, filteredHistories, qaLookup)[0] ?? null;
+    const totalQaTimeHours = qaMember
+      ? calculateTotalQaTimeHours(
+          issue,
+          filteredHistories,
+          qaMember,
+          nonWorkingDaysByMemberId[qaMember.id] ?? [],
+        )
+      : null;
+
     const processedIssue = toProcessedIssue(
       issue,
       sprint,
       member.jiraEmail,
       'external',
       filteredHistories,
+      devTimeHours,
+      totalDevTimeHours,
+      totalQaTimeHours,
     );
 
     if (!processedIssue) {
@@ -747,6 +895,7 @@ export function processQaSprintIssues(
   nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>,
 ): DeveloperIssueGroup[] {
   const qaMembers = members.filter((member) => member.specialization.includes('qa'));
+  const developerLookup = buildMemberLookup(getDeveloperMembers(members));
 
   if (qaMembers.length === 0) {
     return [];
@@ -767,10 +916,34 @@ export function processQaSprintIssues(
     }
 
     for (const member of matchedMembers) {
+      const developerMember = findMemberForIssue(issue, allHistories, developerLookup);
+      const devTimeHours = developerMember
+        ? calculateDevTimeHours(
+            issue,
+            allHistories,
+            sprint,
+            developerMember,
+            nonWorkingDaysByMemberId[developerMember.id] ?? [],
+          )
+        : null;
+      const totalDevTimeHours = developerMember
+        ? calculateTotalDevTimeHours(
+            issue,
+            allHistories,
+            developerMember,
+            nonWorkingDaysByMemberId[developerMember.id] ?? [],
+          )
+        : null;
       const testingTimeHours = calculateQaTestingTimeHours(
         issue,
         allHistories,
         sprint,
+        member,
+        nonWorkingDaysByMemberId[member.id] ?? [],
+      );
+      const totalQaTimeHours = calculateTotalQaTimeHours(
+        issue,
+        allHistories,
         member,
         nonWorkingDaysByMemberId[member.id] ?? [],
       );
@@ -786,6 +959,9 @@ export function processQaSprintIssues(
           sprint.sprintName,
         ),
         filteredHistories,
+        devTimeHours,
+        totalDevTimeHours,
+        totalQaTimeHours,
         testingTimeHours,
       );
 
@@ -828,6 +1004,7 @@ export function processQaExternalInProgressIssues(
   nonWorkingDaysByMemberId: Record<string, NonWorkingDayRecord[]>,
 ): Map<string, ProcessedIssue[]> {
   const qaMembers = members.filter((member) => member.specialization.includes('qa'));
+  const developerLookup = buildMemberLookup(getDeveloperMembers(members));
 
   if (qaMembers.length === 0) {
     return new Map<string, ProcessedIssue[]>();
@@ -845,10 +1022,34 @@ export function processQaExternalInProgressIssues(
     }
 
     for (const member of matchedMembers) {
+      const developerMember = findMemberForIssue(issue, filteredHistories, developerLookup);
+      const devTimeHours = developerMember
+        ? calculateDevTimeHours(
+            issue,
+            filteredHistories,
+            sprint,
+            developerMember,
+            nonWorkingDaysByMemberId[developerMember.id] ?? [],
+          )
+        : null;
+      const totalDevTimeHours = developerMember
+        ? calculateTotalDevTimeHours(
+            issue,
+            filteredHistories,
+            developerMember,
+            nonWorkingDaysByMemberId[developerMember.id] ?? [],
+          )
+        : null;
       const testingTimeHours = calculateQaTestingTimeHours(
         issue,
         filteredHistories,
         sprint,
+        member,
+        nonWorkingDaysByMemberId[member.id] ?? [],
+      );
+      const totalQaTimeHours = calculateTotalQaTimeHours(
+        issue,
+        filteredHistories,
         member,
         nonWorkingDaysByMemberId[member.id] ?? [],
       );
@@ -858,6 +1059,9 @@ export function processQaExternalInProgressIssues(
         member.jiraEmail,
         'external',
         filteredHistories,
+        devTimeHours,
+        totalDevTimeHours,
+        totalQaTimeHours,
         testingTimeHours,
       );
 
