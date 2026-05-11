@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npm run prisma:generate && npm run build",
+  "env": [
+    "DATABASE_URL",
+    "ENCRYPTION_KEY"
+  ],
+  "envPrefix": ""
+}
