@@ -20,13 +20,13 @@ function validateEncryptionKey(value: string): string {
 
 export const config = {
   get databaseUrl(): string {
-    return requireEnv('DATABASE_URL');
+    return requireEnv('POSTGRES_URL');
   },
   get encryptionKey(): string {
     return validateEncryptionKey(requireEnv('ENCRYPTION_KEY'));
   },
   get postgresDb(): string {
-    return requireEnv('POSTGRES_DB');
+    return requireEnv('POSTGRES_DATABASE');
   },
   get postgresPassword(): string {
     return requireEnv('POSTGRES_PASSWORD');

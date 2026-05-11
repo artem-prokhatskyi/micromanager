@@ -87,7 +87,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -113,11 +113,11 @@ volumes:
 ### .env.example
 
 ```
-DATABASE_URL=postgresql://sprint_user:sprint_pass@db:5432/sprint_monitor
+POSTGRES_URL=postgresql://sprint_user:sprint_pass@db:5432/sprint_monitor
 ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
 POSTGRES_USER=sprint_user
 POSTGRES_PASSWORD=sprint_pass
-POSTGRES_DB=sprint_monitor
+POSTGRES_DATABASE=sprint_monitor
 ```
 
 ### Prisma Schema
@@ -136,7 +136,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("POSTGRES_URL")
 }
 
 model Settings {
@@ -323,7 +323,7 @@ function requireEnv(key: string): string {
 }
 
 export const config = {
-  databaseUrl: () => requireEnv('DATABASE_URL'),
+  databaseUrl: () => requireEnv('POSTGRES_URL'),
   encryptionKey: () => requireEnv('ENCRYPTION_KEY'),
 } as const;
 ```
@@ -393,7 +393,7 @@ export default nextConfig;
 - [ ] Re-running migrations on an already-migrated DB is a no-op
 - [ ] `encrypt(decrypt(x)) === x` for any string `x`
 - [ ] App fails to start with a clear error if `ENCRYPTION_KEY` is not 64 hex chars
-- [ ] App fails to start with a clear error if `DATABASE_URL` is missing
+- [ ] App fails to start with a clear error if `POSTGRES_URL` is missing
 - [ ] `.env` is in `.gitignore`; `.env.example` is committed
 - [ ] `lib/prisma.ts` singleton does not create duplicate connections in dev mode
 - [ ] All Prisma unique constraints are enforced at DB level

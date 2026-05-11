@@ -203,7 +203,7 @@ Team Sprint Monitor is an internal web tool for tracking development team produc
 
 | Variable | Example | Required |
 |---|---|---|
-| `DATABASE_URL` | `postgresql://user:pass@db:5432/sprint_monitor` | Yes |
+| `POSTGRES_URL` | `postgresql://user:pass@db:5432/sprint_monitor` | Yes |
 | `ENCRYPTION_KEY` | 32-byte hex string | Yes — for Jira API key encryption |
 
 ### Startup sequence

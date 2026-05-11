@@ -21,7 +21,7 @@ function resolveDatabaseUrl() {
     return override;
   }
 
-  const currentValue = process.env.DATABASE_URL;
+  const currentValue = process.env.POSTGRES_URL;
 
   if (!currentValue) {
     return currentValue;
@@ -49,7 +49,7 @@ const child = spawn(process.execPath, [nextBinPath, 'dev'], {
   stdio: 'inherit',
   env: {
     ...process.env,
-    ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+    ...(databaseUrl ? { POSTGRES_URL: databaseUrl } : {}),
   },
 });
 

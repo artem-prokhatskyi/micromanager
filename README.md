@@ -25,11 +25,11 @@ The app requires these environment variables:
 
 | Variable | Description |
 | --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string used by Prisma |
+| `POSTGRES_URL` | PostgreSQL connection string used by Prisma |
 | `ENCRYPTION_KEY` | 64-character hex string used for AES-256-GCM encryption |
 | `POSTGRES_USER` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
-| `POSTGRES_DB` | PostgreSQL database name |
+| `POSTGRES_DATABASE` | PostgreSQL database name |
 
 `ENCRYPTION_KEY` must be exactly 64 hex characters. The runtime startup check fails fast if it is missing or invalid.
 

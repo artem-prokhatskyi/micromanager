@@ -480,7 +480,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -497,7 +497,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      POSTGRES_URL: ${POSTGRES_URL}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     command: sh -c "npx prisma migrate deploy && node server.js"
 
@@ -516,11 +516,11 @@ Required in `.env`:
 
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | `postgresql://user:pass@db:5432/sprint_monitor` |
+| `POSTGRES_URL` | `postgresql://user:pass@db:5432/sprint_monitor` |
 | `ENCRYPTION_KEY` | 64-character hex string (32 bytes) |
 | `POSTGRES_USER` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
-| `POSTGRES_DB` | Database name |
+| `POSTGRES_DATABASE` | Database name |
 
 ---
 

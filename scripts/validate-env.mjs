@@ -16,8 +16,8 @@ function validateEncryptionKey(value) {
   }
 }
 
-requireEnv('DATABASE_URL');
+requireEnv('POSTGRES_URL');
 validateEncryptionKey(requireEnv('ENCRYPTION_KEY'));
-requireEnv('POSTGRES_DB');
+requireEnv('POSTGRES_DATABASE');
 requireEnv('POSTGRES_PASSWORD');
 requireEnv('POSTGRES_USER');

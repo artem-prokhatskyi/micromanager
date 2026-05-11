@@ -82,11 +82,11 @@ Team Sprint Monitor is an internal web tool for tracking development team produc
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string (e.g. `postgresql://user:pass@db:5432/sprint_monitor`) |
+| `POSTGRES_URL` | PostgreSQL connection string (e.g. `postgresql://user:pass@db:5432/sprint_monitor`) |
 | `ENCRYPTION_KEY` | 32-byte hex string for encrypting Jira API key at rest |
 
 **Acceptance criteria:**
-- App fails to start with a clear error if `DATABASE_URL` or `ENCRYPTION_KEY` is missing
+- App fails to start with a clear error if `POSTGRES_URL` or `ENCRYPTION_KEY` is missing
 - `.env.example` file included in repository with placeholder values
 - `.env` listed in `.gitignore`
 
