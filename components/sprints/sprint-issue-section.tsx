@@ -309,7 +309,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
               return null;
             }
 
-            return <DeveloperIssueTable group={group} key={group.member.id} member={member} showDevQaRatio showDevTime showTestingTime showTotalDevTime showTotalQaTime />;
+            return <DeveloperIssueTable group={group} key={group.member.id} member={member} showDevTime showTotalDevTime />;
           })
         : null}
 
@@ -326,7 +326,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
               return null;
             }
 
-            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} showDevQaRatio showDevTime showTestingTime showTotalDevTime showTotalQaTime storyPointsLabel="Dev SP" />;
+            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} showTestingTime showTotalQaTime storyPointsLabel="Dev SP" />;
           })}
         </div>
       ) : null}

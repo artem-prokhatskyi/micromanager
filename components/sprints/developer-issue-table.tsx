@@ -18,7 +18,6 @@ interface DeveloperIssueTableProps {
   showDevTime?: boolean;
   showTotalDevTime?: boolean;
   showTotalQaTime?: boolean;
-  showDevQaRatio?: boolean;
   showStoryPoints?: boolean;
   storyPointsLabel?: string;
   showTestingTime?: boolean;
@@ -68,26 +67,11 @@ function formatDuration(hours: number | null, prefix: string): string | null {
   return `${prefix} ${hours.toFixed(1)}h`;
 }
 
-function formatAverageDevQaRatio(value: number | null): string | null {
-  if (value === null) {
-    return null;
-  }
-
-  return `Avg Dev/QA ${value.toFixed(2)}`;
-}
-
-function getQaHeaderMetrics(group: DeveloperIssueGroup): { averageDevQaRatio: number | null; sprintQaTimeHours: number | null } {
+function getQaHeaderMetrics(group: DeveloperIssueGroup): { sprintQaTimeHours: number | null } {
   const issues = [...group.issues, ...group.externalInProgressIssues];
   const sprintQaTimeHours = issues.reduce<number>((total, issue) => total + (issue.testingTimeHours ?? 0), 0);
-  const devQaRatios = issues
-    .map((issue) => issue.devQaRatio)
-    .filter((value): value is number => value !== null);
-  const averageDevQaRatio = devQaRatios.length > 0
-    ? devQaRatios.reduce((total, value) => total + value, 0) / devQaRatios.length
-    : null;
 
   return {
-    averageDevQaRatio,
     sprintQaTimeHours: sprintQaTimeHours > 0 ? Math.round(sprintQaTimeHours * 10) / 10 : null,
   };
 }
@@ -109,7 +93,7 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }): ReactElement {
   );
 }
 
-function IssueGroupTable({ issues, showDevTime = false, showTotalDevTime = false, showTotalQaTime = false, showDevQaRatio = false, showStoryPoints = true, showTestingTime = false, storyPointsLabel = 'SP', title }: { issues: ProcessedIssue[]; showDevTime?: boolean; showTotalDevTime?: boolean; showTotalQaTime?: boolean; showDevQaRatio?: boolean; showStoryPoints?: boolean; showTestingTime?: boolean; storyPointsLabel?: string; title: string }): ReactElement {
+function IssueGroupTable({ issues, showDevTime = false, showTotalDevTime = false, showTotalQaTime = false, showStoryPoints = true, showTestingTime = false, storyPointsLabel = 'SP', title }: { issues: ProcessedIssue[]; showDevTime?: boolean; showTotalDevTime?: boolean; showTotalQaTime?: boolean; showStoryPoints?: boolean; showTestingTime?: boolean; storyPointsLabel?: string; title: string }): ReactElement {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -127,14 +111,13 @@ function IssueGroupTable({ issues, showDevTime = false, showTotalDevTime = false
             {showTestingTime ? <TableHead>Sprint QA time</TableHead> : null}
             {showTotalDevTime ? <TableHead>Total Dev time</TableHead> : null}
             {showTotalQaTime ? <TableHead>Total QA time</TableHead> : null}
-            {showDevQaRatio ? <TableHead>Dev/QA</TableHead> : null}
             <TableHead>Priority</TableHead>
             <TableHead>Sprint status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {issues.map((issue) => (
-            <IssueTableRow issue={issue} key={issue.key} showDevQaRatio={showDevQaRatio} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} />
+            <IssueTableRow issue={issue} key={issue.key} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} />
           ))}
         </TableBody>
       </Table>
@@ -146,7 +129,7 @@ function formatSpecializationLabels(values: DeveloperIssueGroup['member']['speci
   return values.map((value) => SPECIALIZATION_SHORT_LABELS[value]);
 }
 
-export function DeveloperIssueTable({ group, member, showCapacitySummary = true, showDevTime = false, showTotalDevTime = false, showTotalQaTime = false, showDevQaRatio = false, showStoryPoints = true, storyPointsLabel = 'SP', showTestingTime = false }: DeveloperIssueTableProps): ReactElement {
+export function DeveloperIssueTable({ group, member, showCapacitySummary = true, showDevTime = false, showTotalDevTime = false, showTotalQaTime = false, showStoryPoints = true, storyPointsLabel = 'SP', showTestingTime = false }: DeveloperIssueTableProps): ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const externalInProgressIssues = group.externalInProgressIssues;
   const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
@@ -155,7 +138,6 @@ export function DeveloperIssueTable({ group, member, showCapacitySummary = true,
   const githubSummary = formatGithubMetrics(member);
   const qaHeaderMetrics = !showCapacitySummary ? getQaHeaderMetrics(group) : null;
   const sprintQaSummary = qaHeaderMetrics ? formatDuration(qaHeaderMetrics.sprintQaTimeHours, 'Sprint QA') : null;
-  const averageDevQaSummary = qaHeaderMetrics ? formatAverageDevQaRatio(qaHeaderMetrics.averageDevQaRatio) : null;
 
   return (
     <Card>
@@ -193,15 +175,14 @@ export function DeveloperIssueTable({ group, member, showCapacitySummary = true,
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <p>{formatAbsenceSummary(member)}</p>
           {sprintQaSummary ? <p>{sprintQaSummary}</p> : null}
-          {averageDevQaSummary ? <p>{averageDevQaSummary}</p> : null}
           {githubSummary ? <p>{githubSummary}</p> : null}
         </div>
       </CardHeader>
       {collapsed ? null : (
         <CardContent className="space-y-6">
-          {plannedIssues.length > 0 ? <IssueGroupTable issues={plannedIssues} showDevQaRatio={showDevQaRatio} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} storyPointsLabel={storyPointsLabel} title="Planned issues" /> : null}
-          {unplannedIssues.length > 0 ? <IssueGroupTable issues={unplannedIssues} showDevQaRatio={showDevQaRatio} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} storyPointsLabel={storyPointsLabel} title="Unplanned issues" /> : null}
-          {externalInProgressIssues.length > 0 ? <IssueGroupTable issues={externalInProgressIssues} showDevQaRatio={showDevQaRatio} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} storyPointsLabel={storyPointsLabel} title="External in-progress issues" /> : null}
+          {plannedIssues.length > 0 ? <IssueGroupTable issues={plannedIssues} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} storyPointsLabel={storyPointsLabel} title="Planned issues" /> : null}
+          {unplannedIssues.length > 0 ? <IssueGroupTable issues={unplannedIssues} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} storyPointsLabel={storyPointsLabel} title="Unplanned issues" /> : null}
+          {externalInProgressIssues.length > 0 ? <IssueGroupTable issues={externalInProgressIssues} showDevTime={showDevTime} showStoryPoints={showStoryPoints} showTestingTime={showTestingTime} showTotalDevTime={showTotalDevTime} showTotalQaTime={showTotalQaTime} storyPointsLabel={storyPointsLabel} title="External in-progress issues" /> : null}
         </CardContent>
       )}
     </Card>

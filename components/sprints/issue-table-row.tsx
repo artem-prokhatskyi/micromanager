@@ -6,7 +6,6 @@ import type { ProcessedIssue } from '@/types';
 
 interface IssueTableRowProps {
   issue: ProcessedIssue;
-  showDevQaRatio?: boolean;
   showDevTime?: boolean;
   showStoryPoints?: boolean;
   showTestingTime?: boolean;
@@ -24,14 +23,6 @@ function formatDurationTime(hours: number | null): string {
   }
 
   return `${hours.toFixed(1)}h`;
-}
-
-function formatDevQaRatio(value: number | null): string {
-  if (value === null) {
-    return '—';
-  }
-
-  return value.toFixed(2);
 }
 
 function getStatusBadgeClassName(status: string): string {
@@ -116,7 +107,7 @@ function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priorit
   }
 }
 
-export function IssueTableRow({ issue, showDevQaRatio = false, showDevTime = false, showStoryPoints = true, showTestingTime = false, showTotalDevTime = false, showTotalQaTime = false }: IssueTableRowProps): ReactElement {
+export function IssueTableRow({ issue, showDevTime = false, showStoryPoints = true, showTestingTime = false, showTotalDevTime = false, showTotalQaTime = false }: IssueTableRowProps): ReactElement {
   const badgeClassName = issue.label === 'planned'
     ? undefined
     : issue.label === 'unplanned'
@@ -147,7 +138,6 @@ export function IssueTableRow({ issue, showDevQaRatio = false, showDevTime = fal
       {showTestingTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.testingTimeHours)}</TableCell> : null}
       {showTotalDevTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.totalDevTimeHours)}</TableCell> : null}
       {showTotalQaTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.totalQaTimeHours)}</TableCell> : null}
-      {showDevQaRatio ? <TableCell className="text-foreground text-nowrap">{formatDevQaRatio(issue.devQaRatio)}</TableCell> : null}
       <TableCell>
         {issue.priority ? (
           <Badge className={priorityBadgeClassName ?? undefined} variant="outline">{issue.priority}</Badge>

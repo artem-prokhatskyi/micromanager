@@ -333,11 +333,7 @@ function isInProgressStatus(status: string): boolean {
   const normalizedStatus = status.trim().toLowerCase();
 
   return (
-    normalizedStatus.includes('progress')
-    || normalizedStatus.includes('develop')
-    || normalizedStatus.includes('implement')
-    || normalizedStatus.includes('coding')
-    || normalizedStatus.includes('working')
+    normalizedStatus === 'in progress'
   );
 }
 
@@ -345,37 +341,33 @@ function isQaTestingStatus(status: string): boolean {
   const normalizedStatus = status.trim().toLowerCase();
 
   return (
-    normalizedStatus.includes('testing')
-    || normalizedStatus.includes('qa')
-    || normalizedStatus.includes('verify')
-    || normalizedStatus.includes('validation')
+    normalizedStatus === 'testing'
   );
 }
 
 function getSprintWindow(sprint: IssuePipelineSprintContext): { end: Date; start: Date } {
   const sprintStart = startOfUtcDay(sprint.activatedAt ?? sprint.plannedStart);
-  const plannedEnd = startOfUtcDay(sprint.plannedEnd);
-  const today = getTodayUtc();
 
-  let sprintEndDay = plannedEnd;
+  if (sprint.actualEnd) {
+    const actualEndDay = startOfUtcDay(sprint.actualEnd);
 
-  if (sprint.actualEnd && startOfUtcDay(sprint.actualEnd).getTime() > plannedEnd.getTime()) {
-    sprintEndDay = startOfUtcDay(sprint.actualEnd);
-  } else if (!sprint.actualEnd && today.getTime() > plannedEnd.getTime()) {
-    sprintEndDay = today;
+    return {
+      start: sprintStart,
+      end: new Date(Date.UTC(
+        actualEndDay.getUTCFullYear(),
+        actualEndDay.getUTCMonth(),
+        actualEndDay.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      )),
+    };
   }
 
   return {
     start: sprintStart,
-    end: new Date(Date.UTC(
-      sprintEndDay.getUTCFullYear(),
-      sprintEndDay.getUTCMonth(),
-      sprintEndDay.getUTCDate(),
-      23,
-      59,
-      59,
-      999,
-    )),
+    end: new Date(),
   };
 }
 
