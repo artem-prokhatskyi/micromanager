@@ -95,8 +95,52 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [areFiltersExpanded, setAreFiltersExpanded] = useState<boolean>(false);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-  const [selectedSpecializations, setSelectedSpecializations] = useState<Specialization[]>([]);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') {
+      return [];
+    }
+
+    try {
+      const stored = localStorage.getItem(`sprint-filter-members:${sprintId}`);
+
+      return stored ? JSON.parse(stored) as string[] : [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedSpecializations, setSelectedSpecializations] = useState<Specialization[]>(() => {
+    if (typeof window === 'undefined') {
+      return [];
+    }
+
+    try {
+      const stored = localStorage.getItem(`sprint-filter-specializations:${sprintId}`);
+
+      return stored ? JSON.parse(stored) as Specialization[] : [];
+    } catch {
+      return [];
+    }
+  });
+
+  function updateSelectedMemberIds(updater: string[] | ((current: string[]) => string[])): void {
+    setSelectedMemberIds((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+
+      localStorage.setItem(`sprint-filter-members:${sprintId}`, JSON.stringify(next));
+
+      return next;
+    });
+  }
+
+  function updateSelectedSpecializations(updater: Specialization[] | ((current: Specialization[]) => Specialization[])): void {
+    setSelectedSpecializations((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+
+      localStorage.setItem(`sprint-filter-specializations:${sprintId}`, JSON.stringify(next));
+
+      return next;
+    });
+  }
 
   const membersById = useMemo(
     () => new Map<string, MemberCapacityData>(members.map((member) => [member.memberId, member])),
@@ -236,7 +280,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
         >
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Filters</p>
-            <p className="text-sm text-muted-foreground">{filtersSummary}</p>
+            <p className={`text-sm ${selectedMemberIds.length > 0 || selectedSpecializations.length > 0 ? 'font-medium text-amber-300' : 'text-muted-foreground'}`}>{filtersSummary}</p>
           </div>
           <span className="text-sm font-medium text-foreground">{areFiltersExpanded ? 'Hide filters' : 'Show filters'}</span>
         </button>
@@ -251,7 +295,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
                 <label className="flex items-center gap-2 text-sm text-foreground">
                   <Checkbox
                     checked={selectedMemberIds.length === 0}
-                    onChange={() => setSelectedMemberIds([])}
+                    onChange={() => updateSelectedMemberIds([])}
                   />
                   <span>All people</span>
                 </label>
@@ -260,7 +304,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
                     <label className="flex items-center gap-2 text-sm text-foreground" key={member.id}>
                       <Checkbox
                         checked={selectedMemberIds.includes(member.id)}
-                        onChange={() => setSelectedMemberIds((current) => toggleSelection(current, member.id))}
+                        onChange={() => updateSelectedMemberIds((current) => toggleSelection(current, member.id))}
                       />
                       <span>{member.name}</span>
                     </label>
@@ -276,7 +320,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
                 <label className="flex items-center gap-2 text-sm text-foreground">
                   <Checkbox
                     checked={selectedSpecializations.length === 0}
-                    onChange={() => setSelectedSpecializations([])}
+                    onChange={() => updateSelectedSpecializations([])}
                   />
                   <span>All specializations</span>
                 </label>
@@ -285,7 +329,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
                     <label className="flex items-center gap-2 text-sm text-foreground" key={specialization}>
                       <Checkbox
                         checked={selectedSpecializations.includes(specialization)}
-                        onChange={() => setSelectedSpecializations((current) => toggleSelection(current, specialization))}
+                        onChange={() => updateSelectedSpecializations((current) => toggleSelection(current, specialization))}
                       />
                       <span>{SPECIALIZATION_LABELS[specialization]}</span>
                     </label>
@@ -309,7 +353,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
               return null;
             }
 
-            return <DeveloperIssueTable group={group} key={group.member.id} member={member} showDevTime showTotalDevTime />;
+            return <DeveloperIssueTable group={group} key={group.member.id} member={member} showDevTime showTotalDevTime sprintId={sprintId} />;
           })
         : null}
 
@@ -326,7 +370,7 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
               return null;
             }
 
-            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} showTestingTime showTotalQaTime storyPointsLabel="Dev SP" />;
+            return <DeveloperIssueTable group={group} key={`qa-${group.member.id}`} member={member} showCapacitySummary={false} showTestingTime showTotalQaTime sprintId={sprintId} storyPointsLabel="Dev SP" />;
           })}
         </div>
       ) : null}

@@ -21,6 +21,7 @@ interface DeveloperIssueTableProps {
   showStoryPoints?: boolean;
   storyPointsLabel?: string;
   showTestingTime?: boolean;
+  sprintId: string;
 }
 
 function formatAbsenceSummary(member: MemberCapacityData): string {
@@ -125,8 +126,8 @@ function formatSpecializationLabels(values: DeveloperIssueGroup['member']['speci
   return values.map((value) => SPECIALIZATION_SHORT_LABELS[value]);
 }
 
-export function DeveloperIssueTable({ group, member, showCapacitySummary = true, showDevTime = false, showTotalDevTime = false, showTotalQaTime = false, showStoryPoints = true, storyPointsLabel = 'SP', showTestingTime = false }: DeveloperIssueTableProps): ReactElement {
-  const [collapsed, setCollapsed] = useState<boolean>(false);
+export function DeveloperIssueTable({ group, member, showCapacitySummary = true, showDevTime = false, showTotalDevTime = false, showTotalQaTime = false, showStoryPoints = true, storyPointsLabel = 'SP', showTestingTime = false, sprintId }: DeveloperIssueTableProps): ReactElement {
+  const [collapsed, setCollapsed] = useState<boolean>(true);
   const externalInProgressIssues = group.externalInProgressIssues;
   const plannedIssues = group.issues.filter((issue) => issue.label === 'planned');
   const unplannedIssues = group.issues.filter((issue) => issue.label === 'unplanned');

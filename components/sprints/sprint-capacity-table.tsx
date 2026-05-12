@@ -183,17 +183,17 @@ export function SprintCapacityTable({ members, sprint, sprints, teamId }: Sprint
         />
       </CardHeader>
       <CardContent className="space-y-4">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Planned working days</TableHead>
-              <TableHead>Focus factor</TableHead>
-              <TableHead>Planned capacity</TableHead>
+              <TableHead className="w-[160px]">Planned working days</TableHead>
+              <TableHead className="w-[120px]">Focus factor</TableHead>
+              <TableHead className="w-[140px]">Planned capacity</TableHead>
               {sprint.isOverdue ? (
                 <>
-                  <TableHead>Actual working days</TableHead>
-                  <TableHead>Actual capacity</TableHead>
+                  <TableHead className="w-[160px]">Actual working days</TableHead>
+                  <TableHead className="w-[140px]">Actual capacity</TableHead>
                 </>
               ) : null}
             </TableRow>
