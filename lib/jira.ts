@@ -358,6 +358,35 @@ function parseJiraDate(value?: string): Date | null {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 }
 
+function parseJiraCalendarDate(value?: string): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  // Sprint start/end dates are calendar dates (e.g. "Apr 27") stored as midnight
+  // in the Jira instance's timezone. The API returns them converted to UTC, which
+  // can shift the date (e.g. Apr 27 00:00+03 → Apr 26 21:00Z).
+  // Round to nearest UTC midnight to recover the intended calendar date.
+  const hours = parsedDate.getUTCHours();
+  const year = parsedDate.getUTCFullYear();
+  const month = parsedDate.getUTCMonth();
+  const day = parsedDate.getUTCDate();
+
+  if (hours >= 12) {
+    // Closer to next midnight — advance one day
+    const nextDay = new Date(Date.UTC(year, month, day + 1));
+    return nextDay;
+  }
+
+  return new Date(Date.UTC(year, month, day));
+}
+
 export function resolveJiraSprintDates(
   sprint: Pick<JiraSprintMetadata, 'startDate' | 'endDate' | 'activatedDate' | 'completeDate'>,
 ): {
@@ -369,8 +398,8 @@ export function resolveJiraSprintDates(
   const activatedAt = parseJiraDate(sprint.activatedDate);
   const actualEnd = parseJiraDate(sprint.completeDate);
   const fallbackDate = new Date();
-  const plannedStart = parseJiraDate(sprint.startDate) ?? activatedAt ?? actualEnd ?? fallbackDate;
-  const plannedEndCandidate = parseJiraDate(sprint.endDate) ?? actualEnd ?? plannedStart;
+  const plannedStart = parseJiraCalendarDate(sprint.startDate) ?? activatedAt ?? actualEnd ?? fallbackDate;
+  const plannedEndCandidate = parseJiraCalendarDate(sprint.endDate) ?? actualEnd ?? plannedStart;
   const plannedEnd = plannedEndCandidate < plannedStart ? plannedStart : plannedEndCandidate;
 
   return {
