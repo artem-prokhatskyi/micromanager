@@ -165,7 +165,7 @@ export function DeveloperIssueTable({ group, member, showCapacitySummary = true,
           </div>
           {showCapacitySummary ? (
             <p className="text-sm font-medium text-foreground">
-              {group.totalStoryPoints} SP / {(member.actualCapacity ?? member.plannedCapacity).toFixed(1)} SP
+              {group.totalStoryPoints.toFixed(1)} SP / {(member.actualCapacity ?? member.plannedCapacity).toFixed(1)} SP
             </p>
           ) : null}
         </div>
