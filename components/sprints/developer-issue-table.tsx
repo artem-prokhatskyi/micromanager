@@ -60,11 +60,7 @@ function formatDuration(hours: number | null, prefix: string): string | null {
     return null;
   }
 
-  if (hours >= 24) {
-    return `${prefix} ${(hours / 24).toFixed(1)}d`;
-  }
-
-  return `${prefix} ${hours.toFixed(1)}h`;
+  return `${prefix} ${(hours / 10).toFixed(1)}d`;
 }
 
 function getQaHeaderMetrics(group: DeveloperIssueGroup): { sprintQaTimeHours: number | null } {
@@ -100,19 +96,19 @@ function IssueGroupTable({ issues, showDevTime = false, showTotalDevTime = false
         <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">{title}</h3>
         <p className="text-xs text-muted-foreground">{issues.length} tickets</p>
       </div>
-      <Table>
+      <Table className="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Key</TableHead>
+            <TableHead className="w-[100px]">Key</TableHead>
             <TableHead>Title</TableHead>
-            <TableHead>Type</TableHead>
-            {showStoryPoints ? <TableHead>{storyPointsLabel}</TableHead> : null}
-            {showDevTime ? <TableHead>Sprint Dev Time</TableHead> : null}
-            {showTestingTime ? <TableHead>Sprint QA time</TableHead> : null}
-            {showTotalDevTime ? <TableHead>Total Dev time</TableHead> : null}
-            {showTotalQaTime ? <TableHead>Total QA time</TableHead> : null}
-            <TableHead>Priority</TableHead>
-            <TableHead>Sprint status</TableHead>
+            <TableHead className="w-[80px]">Type</TableHead>
+            {showStoryPoints ? <TableHead className="w-[50px]">{storyPointsLabel}</TableHead> : null}
+            {showDevTime ? <TableHead className="w-[80px]">Sprint Dev</TableHead> : null}
+            {showTestingTime ? <TableHead className="w-[80px]">Sprint QA</TableHead> : null}
+            {showTotalDevTime ? <TableHead className="w-[80px]">Total Dev</TableHead> : null}
+            {showTotalQaTime ? <TableHead className="w-[80px]">Total QA</TableHead> : null}
+            <TableHead className="w-[90px]">Priority</TableHead>
+            <TableHead className="w-[220px]">Sprint status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

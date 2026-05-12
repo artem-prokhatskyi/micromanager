@@ -18,11 +18,7 @@ function formatDurationTime(hours: number | null): string {
     return '—';
   }
 
-  if (hours >= 24) {
-    return `${(hours / 24).toFixed(1)}d`;
-  }
-
-  return `${hours.toFixed(1)}h`;
+  return `${(hours / 10).toFixed(1)}d`;
 }
 
 function getStatusBadgeClassName(status: string): string {
@@ -108,43 +104,35 @@ function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priorit
 }
 
 export function IssueTableRow({ issue, showDevTime = false, showStoryPoints = true, showTestingTime = false, showTotalDevTime = false, showTotalQaTime = false }: IssueTableRowProps): ReactElement {
-  const badgeClassName = issue.label === 'planned'
-    ? undefined
-    : issue.label === 'unplanned'
-      ? 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-500/40'
-      : undefined;
   const statusAtSprintStartBadgeClassName = getStatusBadgeClassName(issue.statusAtSprintStart);
   const statusAtSprintEndBadgeClassName = getStatusBadgeClassName(issue.statusAtSprintEnd);
   const priorityBadgeClassName = issue.priority ? getPriorityBadgeClassName(issue.priority) : null;
 
   return (
     <TableRow>
-      <TableCell className="font-medium text-foreground text-nowrap">
+      <TableCell className="w-[100px] font-medium text-foreground text-nowrap">
         <a href={issue.url} rel="noopener noreferrer" target="_blank">
           {issue.key}
         </a>
       </TableCell>
-      <TableCell width={600}>
-        <div className="flex flex-wrap items-center gap-2">
-          <a className="font-medium text-foreground" href={issue.url} rel="noopener noreferrer" target="_blank">
-            {issue.title}
-          </a>          
-          <Badge className={badgeClassName} variant={issue.label === 'planned' ? 'secondary' : 'outline'}>{issue.label}</Badge>
-        </div>
-      </TableCell>
-      <TableCell className="text-foreground text-nowrap text-xs">{issue.issueType ?? '—'}</TableCell>
-      {showStoryPoints ? <TableCell className="text-foreground">{issue.storyPoints ?? '—'}</TableCell> : null}
-      {showDevTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.devTimeHours)}</TableCell> : null}
-      {showTestingTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.testingTimeHours)}</TableCell> : null}
-      {showTotalDevTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.totalDevTimeHours)}</TableCell> : null}
-      {showTotalQaTime ? <TableCell className="text-foreground text-nowrap">{formatDurationTime(issue.totalQaTimeHours)}</TableCell> : null}
       <TableCell>
+        <a className="block truncate font-medium text-foreground" href={issue.url} rel="noopener noreferrer" target="_blank" title={issue.title}>
+          {issue.title}
+        </a>
+      </TableCell>
+      <TableCell className="w-[80px] text-foreground text-nowrap text-xs">{issue.issueType ?? '—'}</TableCell>
+      {showStoryPoints ? <TableCell className="w-[50px] text-foreground">{issue.storyPoints ?? '—'}</TableCell> : null}
+      {showDevTime ? <TableCell className="w-[80px] text-foreground text-nowrap">{formatDurationTime(issue.devTimeHours)}</TableCell> : null}
+      {showTestingTime ? <TableCell className="w-[80px] text-foreground text-nowrap">{formatDurationTime(issue.testingTimeHours)}</TableCell> : null}
+      {showTotalDevTime ? <TableCell className="w-[80px] text-foreground text-nowrap">{formatDurationTime(issue.totalDevTimeHours)}</TableCell> : null}
+      {showTotalQaTime ? <TableCell className="w-[80px] text-foreground text-nowrap">{formatDurationTime(issue.totalQaTimeHours)}</TableCell> : null}
+      <TableCell className="w-[90px]">
         {issue.priority ? (
           <Badge className={priorityBadgeClassName ?? undefined} variant="outline">{issue.priority}</Badge>
         ) : '—'}
       </TableCell>
-      <TableCell>
-        <div className="flex min-w-[180px] flex-row gap-2">
+      <TableCell className="w-[220px]">
+        <div className="flex flex-row gap-2">
           <div className="flex items-center gap-2">
             <Badge className={statusAtSprintStartBadgeClassName} variant="outline">{issue.statusAtSprintStart}</Badge>
           </div>
