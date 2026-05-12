@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { WorkingDaysToggle } from '@/components/teams/working-days-toggle';
 import { useToast } from '@/hooks/use-toast';
-import { SPECIALIZATION_LABELS, SPECIALIZATIONS, WEEK_DAYS } from '@/types';
+import { SPECIALIZATION_LABELS, SPECIALIZATIONS, WEEK_DAY, WEEK_DAYS } from '@/types';
 import type {
   ApiError,
   ApiSuccess,
@@ -50,7 +50,7 @@ function getDefaultValues(initialValues: TeamMemberRecord | undefined, teamId: s
     name: initialValues?.name ?? '',
     jiraEmail: initialValues?.jiraEmail ?? '',
     githubUsername: initialValues?.githubUsername ?? '',
-    workingDays: initialValues?.workingDays ?? [...WEEK_DAYS],
+    workingDays: initialValues?.workingDays ?? [WEEK_DAY.MON, WEEK_DAY.TUE, WEEK_DAY.WED, WEEK_DAY.THU, WEEK_DAY.FRI],
     defaultFocusFactor: initialValues ? String(initialValues.defaultFocusFactor) : '0.8',
     specialization: initialValues?.specialization ?? [],
   };
