@@ -103,6 +103,17 @@ function getPriorityBadgeClassName(priority: NonNullable<ProcessedIssue['priorit
   }
 }
 
+const STATUS_SHORT_LABELS: Record<string, string> = {
+  'Product Owner Review': 'PO Review',
+  'In Production': 'In Prod',
+  'Ready for Testing': 'Ready For Test',
+  'Ready for Production': 'Ready for Prod',
+};
+
+function formatStatusLabel(status: string): string {
+  return STATUS_SHORT_LABELS[status] ?? status;
+}
+
 export function IssueTableRow({ issue, showDevTime = false, showStoryPoints = true, showTestingTime = false, showTotalDevTime = false, showTotalQaTime = false }: IssueTableRowProps): ReactElement {
   const statusAtSprintStartBadgeClassName = getStatusBadgeClassName(issue.statusAtSprintStart);
   const statusAtSprintEndBadgeClassName = getStatusBadgeClassName(issue.statusAtSprintEnd);
@@ -131,15 +142,11 @@ export function IssueTableRow({ issue, showDevTime = false, showStoryPoints = tr
           <Badge className={priorityBadgeClassName ?? undefined} variant="outline">{issue.priority}</Badge>
         ) : '—'}
       </TableCell>
-      <TableCell className="w-[220px]">
-        <div className="flex flex-row gap-2">
-          <div className="flex items-center gap-2">
-            <Badge className={statusAtSprintStartBadgeClassName} variant="outline">{issue.statusAtSprintStart}</Badge>
-          </div>
-          <div className="flex items-center">&#8594;</div>
-          <div className="flex items-center gap-2">
-            <Badge className={statusAtSprintEndBadgeClassName} variant="outline">{issue.statusAtSprintEnd}</Badge>
-          </div>
+      <TableCell className="w-[280px]">
+        <div className="flex flex-row items-center gap-2 text-nowrap">
+          <Badge className={statusAtSprintStartBadgeClassName} variant="outline">{formatStatusLabel(issue.statusAtSprintStart)}</Badge>
+          <span>&#8594;</span>
+          <Badge className={statusAtSprintEndBadgeClassName} variant="outline">{formatStatusLabel(issue.statusAtSprintEnd)}</Badge>
         </div>
       </TableCell>
     </TableRow>

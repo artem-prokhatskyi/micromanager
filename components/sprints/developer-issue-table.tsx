@@ -109,7 +109,7 @@ function IssueGroupTable({ issues, showDevTime = false, showTotalDevTime = false
             {showTotalDevTime ? <TableHead className="w-[80px]">Total Dev</TableHead> : null}
             {showTotalQaTime ? <TableHead className="w-[80px]">Total QA</TableHead> : null}
             <TableHead className="w-[90px]">Priority</TableHead>
-            <TableHead className="w-[220px]">Sprint status</TableHead>
+            <TableHead className="w-[280px]">Sprint status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
