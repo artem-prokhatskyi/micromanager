@@ -201,11 +201,8 @@ function getLastQaIdentifiers(issue: JiraIssue, histories: JiraIssueHistory[]): 
   return parseUserFieldIdentifiers(issue.fields[QA_OWNER_FIELD_ID]);
 }
 
-function findQaMembersForIssue(issue: JiraIssue, histories: JiraIssueHistory[], lookup: MemberLookup): IssuePipelineMember[] {
-  const identifiers = new Set<string>([
-    ...getLastQaIdentifiers(issue, histories),
-    ...normalizeIdentifiers([getLastAssigneeIdentifier(issue, histories)]),
-  ]);
+function findQaMembersForIssue(issue: JiraIssue, _histories: JiraIssueHistory[], lookup: MemberLookup): IssuePipelineMember[] {
+  const identifiers = parseUserFieldIdentifiers(issue.fields[QA_OWNER_FIELD_ID]);
   const members = new Map<string, IssuePipelineMember>();
 
   for (const identifier of identifiers) {
