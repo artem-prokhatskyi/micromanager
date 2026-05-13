@@ -514,7 +514,7 @@ function calculateStatusTimeHours(
     return null;
   }
 
-  return Math.round((totalDurationMs / (1000 * 60 * 60)) * 10) / 10;
+  return Math.round((totalDurationMs / (1000 * 60 * 60)) * 100) / 100;
 }
 
 function calculateQaTestingTimeHours(
