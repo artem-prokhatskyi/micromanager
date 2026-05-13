@@ -342,6 +342,14 @@ function isQaTestingStatus(status: string): boolean {
   );
 }
 
+const EXCLUDED_QA_ISSUE_TYPES = new Set(['sub-task', 'sub-bug', 'epic']);
+
+function isExcludedQaIssueType(issue: JiraIssue): boolean {
+  const issueType = issue.fields.issuetype?.name?.trim().toLowerCase() ?? '';
+
+  return EXCLUDED_QA_ISSUE_TYPES.has(issueType);
+}
+
 function getSprintWindow(sprint: IssuePipelineSprintContext): { end: Date; start: Date } {
   const sprintStart = startOfUtcDay(sprint.activatedAt ?? sprint.plannedStart);
 
@@ -894,6 +902,10 @@ export function processQaSprintIssues(
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
   for (const issue of issues) {
+    if (isExcludedQaIssueType(issue)) {
+      continue;
+    }
+
     const allHistories = sortHistoriesAscending(issue.changelog.histories);
     const filteredHistories = sortHistoriesAscending(
       filterHistoriesForSprint(allHistories, sprint.actualEnd),
@@ -1003,6 +1015,10 @@ export function processQaExternalInProgressIssues(
   const groupedIssues = new Map<string, ProcessedIssue[]>();
 
   for (const issue of issues) {
+    if (isExcludedQaIssueType(issue)) {
+      continue;
+    }
+
     const filteredHistories = sortHistoriesAscending(issue.changelog.histories);
     const matchedMembers = findQaMembersForIssue(issue, filteredHistories, lookup);
 
