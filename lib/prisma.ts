@@ -20,13 +20,21 @@ function resolvePrismaDatabaseUrl(): string | undefined {
 
     if (isSupabaseTransactionPooler && databaseUrl.searchParams.get('pgbouncer') !== 'true') {
       databaseUrl.searchParams.set('pgbouncer', 'true');
-      return databaseUrl.toString();
     }
+
+    // Increase connection pool timeout (default 10s is too low for serverless)
+    if (!databaseUrl.searchParams.has('pool_timeout')) {
+      databaseUrl.searchParams.set('pool_timeout', '30');
+    }
+    // Reduce connection limit for serverless to avoid exhausting DB connections
+    if (!databaseUrl.searchParams.has('connection_limit')) {
+      databaseUrl.searchParams.set('connection_limit', '3');
+    }
+
+    return databaseUrl.toString();
   } catch {
     return value;
   }
-
-  return value;
 }
 
 const databaseUrl = resolvePrismaDatabaseUrl();
@@ -38,6 +46,6 @@ export const prisma =
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 
-if (process.env.NODE_ENV !== 'production') {
+if (!globalForPrisma.prisma) {
   globalForPrisma.prisma = prisma;
 }
