@@ -128,7 +128,30 @@ function findMemberForIssue(issue: JiraIssue, histories: JiraIssueHistory[], loo
     return null;
   }
 
-  return lookup.membersByEmail.get(assigneeIdentifier) ?? lookup.uniqueMembersByName.get(assigneeIdentifier) ?? null;
+  const matchedMember = lookup.membersByEmail.get(assigneeIdentifier) ?? lookup.uniqueMembersByName.get(assigneeIdentifier) ?? null;
+
+  if (matchedMember) {
+    return matchedMember;
+  }
+
+  // Fallback: the changelog toString field contains a display name which may not
+  // match the stored member name. Try the current assignee email and name directly.
+  const currentEmail = normalizeAssigneeIdentifier(issue.fields.assignee?.emailAddress);
+  const currentName = normalizeAssigneeIdentifier(issue.fields.assignee?.displayName);
+
+  if (currentEmail) {
+    const memberByEmail = lookup.membersByEmail.get(currentEmail);
+
+    if (memberByEmail) {
+      return memberByEmail;
+    }
+  }
+
+  if (currentName) {
+    return lookup.uniqueMembersByName.get(currentName) ?? null;
+  }
+
+  return null;
 }
 
 function getLastAssigneeIdentifier(issue: JiraIssue, histories: JiraIssueHistory[]): string | null {
