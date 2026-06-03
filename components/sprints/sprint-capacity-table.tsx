@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import { calculateCapacity } from '@/lib/capacity';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CapacityRow } from '@/components/sprints/capacity-row';
@@ -47,7 +47,6 @@ export function SprintCapacityTable({ members, sprint, sprints, teamId }: Sprint
   const { toast } = useToast();
   const [rows, setRows] = useState<MemberCapacityData[]>(members);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const totals = useMemo(
     () => ({
@@ -90,31 +89,6 @@ export function SprintCapacityTable({ members, sprint, sprints, teamId }: Sprint
     }
   }
 
-  async function handleSyncSprint(): Promise<void> {
-    setIsSyncing(true);
-
-    try {
-      const response = await fetch(`/api/teams/${teamId}/sprints/${sprint.id}`, {
-        method: 'PUT',
-      });
-      const payload = (await response.json()) as { error?: { message?: string } };
-
-      if (!response.ok) {
-        throw new Error(payload.error?.message ?? 'Failed to sync sprint.');
-      }
-
-      toast({ title: 'Sprint synced from Jira.' });
-      router.refresh();
-    } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : 'Failed to sync sprint.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  }
-
   async function handleDeleteSprint(): Promise<void> {
     setIsDeleting(true);
 
@@ -150,9 +124,6 @@ export function SprintCapacityTable({ members, sprint, sprints, teamId }: Sprint
             <a className={buttonVariants({ variant: 'outline' })} href={`/api/teams/${teamId}/sprints/${sprint.id}/export`}>
               Export CSV
             </a>
-            <Button disabled={isSyncing} onClick={() => void handleSyncSprint()} type="button" variant="outline">
-              {isSyncing ? 'Syncing...' : 'Sync from Jira'}
-            </Button>
             <AlertDialog>
               <AlertDialogTrigger className="inline-flex h-10 items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500">
                 Delete sprint

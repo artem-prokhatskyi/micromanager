@@ -3,13 +3,16 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import { DeveloperIssueTable } from '@/components/sprints/developer-issue-table';
 import { IssueSkeleton } from '@/components/sprints/issue-skeleton';
 import { JiraErrorBanner } from '@/components/sprints/jira-error-banner';
-import { RefreshButton } from '@/components/sprints/refresh-button';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SPECIALIZATION_LABELS, SPECIALIZATIONS } from '@/types';
 import type { ApiError, DeveloperIssueGroup, MemberCapacityData, Specialization, SprintIssuesResponseData } from '@/types';
+import { useToast } from '@/hooks/use-toast';
 
 interface SprintIssueSectionProps {
   members: MemberCapacityData[];
@@ -88,6 +91,8 @@ function formatFilterSummary(label: string, selectedCount: number, totalCount: n
 }
 
 export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSectionProps): ReactElement {
+  const router = useRouter();
+  const { toast } = useToast();
   const [status, setStatus] = useState<IssueSectionStatus>('loading');
   const [groups, setGroups] = useState<DeveloperIssueGroup[]>([]);
   const [qaGroups, setQaGroups] = useState<DeveloperIssueGroup[]>([]);
@@ -257,6 +262,50 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
     void loadIssues();
   }, [sprintId, teamId]);
 
+  function formatCachedAt(value: string | null): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      month: 'short',
+    }).format(date);
+  }
+
+  async function handleSync(): Promise<void> {
+    setIsRefreshing(true);
+
+    try {
+      const sprintSyncResponse = await fetch(`/api/teams/${teamId}/sprints/${sprintId}`, {
+        method: 'PUT',
+      });
+      const sprintSyncPayload = (await sprintSyncResponse.json()) as { error?: { message?: string } };
+
+      if (!sprintSyncResponse.ok) {
+        throw new Error(sprintSyncPayload.error?.message ?? 'Failed to sync sprint.');
+      }
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : 'Failed to sync sprint.',
+        variant: 'destructive',
+      });
+      setIsRefreshing(false);
+      return;
+    }
+
+    await loadIssues('POST');
+    router.refresh();
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -264,11 +313,10 @@ export function SprintIssueSection({ members, sprintId, teamId }: SprintIssueSec
           <h2 className="text-2xl font-semibold tracking-tight text-foreground">Sprint Issues</h2>
           <p className="text-sm text-muted-foreground">Grouped by the latest assignee state available for this sprint.</p>
         </div>
-        <RefreshButton
-          isRefreshing={isRefreshing}
-          lastRefreshedAt={cachedAt}
-          onRefresh={() => void loadIssues('POST')}
-        />
+        <Button disabled={isRefreshing} onClick={() => void handleSync()} type="button" variant="outline">
+          {formatCachedAt(cachedAt) ? <span className="text-xs text-muted-foreground">{formatCachedAt(cachedAt)}</span> : null}
+          {isRefreshing ? 'Syncing...' : 'Sync'}
+        </Button>
       </div>
 
       <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
