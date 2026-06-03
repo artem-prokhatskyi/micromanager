@@ -257,7 +257,9 @@ function getStoryPoints(
     const storyPointsItem = [...history.items].reverse().find(
       (item) =>
         item.fieldId === storyPointsFieldId
-        || item.field === storyPointsFieldId,
+        || item.field === storyPointsFieldId
+        || item.field === 'story_points'
+        || item.field === 'Story Points',
     );
 
     if (!storyPointsItem) {
